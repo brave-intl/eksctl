@@ -968,6 +968,10 @@ type NodeGroup struct {
 	// ContainerRuntime defines the runtime (CRI) to use for containers on the node
 	// +optional
 	ContainerRuntime *string `json:"containerRuntime,omitempty"`
+
+	// EnclaveEnabled determines if the EC2 instance will be Nitro enclave enabled
+	// +optional
+	EnclaveEnabled bool `json:"enclaveEnabled,omitempty"`
 }
 
 // GetContainerRuntime returns the container runtime.
