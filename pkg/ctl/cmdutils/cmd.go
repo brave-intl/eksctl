@@ -1,12 +1,17 @@
 package cmdutils
 
 import (
+	"context"
+	"sync"
+
 	"github.com/kris-nova/logger"
 	"github.com/spf13/cobra"
 
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/eks"
 )
+
+var once sync.Once
 
 // Cmd holds attributes that are common between commands;
 // not all commands use each attribute, but they can if needed
@@ -53,15 +58,20 @@ func (c *Cmd) NewCtl() (*eks.ClusterProvider, error) {
 
 	for i, ng := range c.ClusterConfig.ManagedNodeGroups {
 		api.SetManagedNodeGroupDefaults(ng, c.ClusterConfig.Metadata)
-		if err := api.ValidateManagedNodeGroup(ng, i); err != nil {
+		if err := api.ValidateManagedNodeGroup(i, ng); err != nil {
 			return nil, err
 		}
 	}
 
-	ctl, err := eks.New(&c.ProviderConfig, c.ClusterConfig)
+	ctl, err := eks.New(context.TODO(), &c.ProviderConfig, c.ClusterConfig)
 	if err != nil {
 		return nil, err
 	}
+
+	//prevent logging multiple times
+	once.Do(func() {
+		logRegionAndVersionInfo(c.ClusterConfig.Metadata)
+	})
 
 	if !ctl.IsSupportedRegion() {
 		return nil, ErrUnsupportedRegion(&c.ProviderConfig)
@@ -87,8 +97,10 @@ func (c *Cmd) NewProviderForExistingCluster() (*eks.ClusterProvider, error) {
 // AddResourceCmd create a registers a new command under the given verb command
 func AddResourceCmd(flagGrouping *FlagGrouping, parentVerbCmd *cobra.Command, newCmd func(*Cmd)) {
 	c := &Cmd{
-		CobraCommand:   &cobra.Command{},
-		ProviderConfig: api.ProviderConfig{},
+		CobraCommand: &cobra.Command{},
+		ProviderConfig: api.ProviderConfig{
+			WaitTimeout: api.DefaultWaitTimeout,
+		},
 
 		Plan:     true,  // always on by default
 		Wait:     false, // varies in some commands

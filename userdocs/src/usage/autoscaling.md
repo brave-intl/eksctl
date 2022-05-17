@@ -44,6 +44,19 @@ nodeGroups:
       k8s.io/cluster-autoscaler/node-template/taint/feaster: "true:NoSchedule"
 ```
 
+For unmanaged and managed nodegroups, this is done by `eksctl` automatically if `propagateASGTags` is set to `true` like this:
+
+```yaml
+nodeGroups:
+  - name: ng1-public
+    ...
+    labels:
+      my-cool-label: pizza
+    taints:
+      feaster: "true:NoSchedule"
+    propagateASGTags: true
+```
+
 You can read more about this
 [here](https://github.com/weaveworks/eksctl/issues/1066) and
 [here](https://github.com/kubernetes/autoscaler/issues/2418).

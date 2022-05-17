@@ -1,6 +1,7 @@
 package get
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	awseks "github.com/aws/aws-sdk-go/service/eks"
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	"github.com/weaveworks/eksctl/pkg/actions/cluster"
 	"github.com/weaveworks/eksctl/pkg/eks"
 	"github.com/weaveworks/eksctl/pkg/printers"
 
@@ -54,6 +56,10 @@ func doGetCluster(cmd *cmdutils.Cmd, params *getCmdParams, listAllRegions bool) 
 	cfg := cmd.ClusterConfig
 	regionGiven := cfg.Metadata.Region != "" // eks.New resets this field, so we need to check if it was set in the first place
 
+	if params.output != printers.TableType {
+		logger.Writer = os.Stderr
+	}
+
 	ctl, err := cmd.NewCtl()
 	if err != nil {
 		return err
@@ -75,23 +81,20 @@ func doGetCluster(cmd *cmdutils.Cmd, params *getCmdParams, listAllRegions bool) 
 		return fmt.Errorf("--all-regions is for listing all clusters, it must be used without cluster name flag/argument")
 	}
 
-	if params.output == printers.TableType && !listAllRegions {
-		cmdutils.LogRegionAndVersionInfo(cmd.ClusterConfig.Metadata)
-	}
-
 	if params.output != printers.TableType {
 		// log warnings and errors to stdout
 		logger.Writer = os.Stderr
 	}
 
+	ctx := context.TODO()
 	if cfg.Metadata.Name == "" {
-		return getAndPrinterClusters(ctl, params, listAllRegions)
+		return getAndPrinterClusters(ctx, ctl, params, listAllRegions)
 	}
 
-	return getAndPrintCluster(cfg, ctl, params)
+	return getAndPrintCluster(ctx, cfg, ctl, params)
 }
 
-func getAndPrinterClusters(ctl *eks.ClusterProvider, params *getCmdParams, listAllRegions bool) error {
+func getAndPrinterClusters(ctx context.Context, ctl *eks.ClusterProvider, params *getCmdParams, listAllRegions bool) error {
 	printer, err := printers.NewPrinter(params.output)
 	if err != nil {
 		return err
@@ -101,7 +104,7 @@ func getAndPrinterClusters(ctl *eks.ClusterProvider, params *getCmdParams, listA
 		addGetClustersSummaryTableColumns(printer.(*printers.TablePrinter))
 	}
 
-	clusters, err := ctl.ListClusters(params.chunkSize, listAllRegions, eks.New)
+	clusters, err := cluster.GetClusters(ctx, ctl.Provider, listAllRegions, params.chunkSize)
 	if err != nil {
 		return err
 	}
@@ -110,18 +113,18 @@ func getAndPrinterClusters(ctl *eks.ClusterProvider, params *getCmdParams, listA
 }
 
 func addGetClustersSummaryTableColumns(printer *printers.TablePrinter) {
-	printer.AddColumn("NAME", func(c *api.ClusterConfig) string {
-		return c.Metadata.Name
+	printer.AddColumn("NAME", func(c cluster.Description) string {
+		return c.Name
 	})
-	printer.AddColumn("REGION", func(c *api.ClusterConfig) string {
-		return c.Metadata.Region
+	printer.AddColumn("REGION", func(c cluster.Description) string {
+		return c.Region
 	})
-	printer.AddColumn("EKSCTL CREATED", func(c *api.ClusterConfig) api.EKSCTLCreated {
-		return c.Status.EKSCTLCreated
+	printer.AddColumn("EKSCTL CREATED", func(c cluster.Description) api.EKSCTLCreated {
+		return c.Owned
 	})
 }
 
-func getAndPrintCluster(cfg *api.ClusterConfig, ctl *eks.ClusterProvider, params *getCmdParams) error {
+func getAndPrintCluster(ctx context.Context, cfg *api.ClusterConfig, ctl *eks.ClusterProvider, params *getCmdParams) error {
 	printer, err := printers.NewPrinter(params.output)
 	if err != nil {
 		return err
@@ -131,7 +134,7 @@ func getAndPrintCluster(cfg *api.ClusterConfig, ctl *eks.ClusterProvider, params
 		addGetClusterSummaryTableColumns(printer.(*printers.TablePrinter))
 	}
 
-	cluster, err := ctl.GetCluster(cfg.Metadata.Name)
+	cluster, err := ctl.GetCluster(ctx, cfg.Metadata.Name)
 
 	if err != nil {
 		return err

@@ -47,17 +47,14 @@ func getAddonCmd(cmd *cmdutils.Cmd) {
 }
 
 func getAddon(cmd *cmdutils.Cmd, params *getCmdParams) error {
+	if params.output != printers.TableType {
+		//log warnings and errors to stdout
+		logger.Writer = os.Stderr
+	}
 
 	clusterProvider, err := cmd.NewProviderForExistingCluster()
 	if err != nil {
 		return err
-	}
-
-	if params.output == printers.TableType {
-		cmdutils.LogRegionAndVersionInfo(cmd.ClusterConfig.Metadata)
-	} else {
-		//log warnings and errors to stdout
-		logger.Writer = os.Stderr
 	}
 
 	stackManager := clusterProvider.NewStackManager(cmd.ClusterConfig)
@@ -93,10 +90,10 @@ func getAddon(cmd *cmdutils.Cmd, params *getCmdParams) error {
 		}
 	}
 
-	if len(summaries) == 0 {
-		logger.Info("no addons found")
-		return nil
+	if len(summaries) > 0 {
+		logger.Info("to see issues for an addon run `eksctl get addon --name <addon-name> --cluster <cluster-name>`")
 	}
+
 	printer, err := printers.NewPrinter(params.output)
 	if err != nil {
 		return err
@@ -106,9 +103,7 @@ func getAddon(cmd *cmdutils.Cmd, params *getCmdParams) error {
 		addAddonSummaryTableColumns(printer.(*printers.TablePrinter))
 	}
 
-	logger.Info("to see issues for an addon run `eksctl get addon --name <addon-name> --cluster <cluster-name>`")
-
-	if err := printer.PrintObjWithKind("addonsummary", summaries, os.Stdout); err != nil {
+	if err := printer.PrintObjWithKind("addons", summaries, os.Stdout); err != nil {
 		return err
 	}
 

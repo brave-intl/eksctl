@@ -1,6 +1,7 @@
 package upgrade
 
 import (
+	"context"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -9,7 +10,6 @@ import (
 	"github.com/weaveworks/eksctl/pkg/actions/nodegroup"
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/ctl/cmdutils"
-	"github.com/weaveworks/eksctl/pkg/managed"
 )
 
 const upgradeNodegroupTimeout = 45 * time.Minute
@@ -20,7 +20,7 @@ func upgradeNodeGroupCmd(cmd *cmdutils.Cmd) {
 
 	cmd.SetDescription("nodegroup", "Upgrade nodegroup", "")
 
-	var options managed.UpgradeOptions
+	var options nodegroup.UpgradeOptions
 	cmd.CobraCommand.RunE = func(_ *cobra.Command, args []string) error {
 		cmd.NameArg = cmdutils.GetNameArg(args)
 		return upgradeNodeGroup(cmd, options)
@@ -46,7 +46,7 @@ func upgradeNodeGroupCmd(cmd *cmdutils.Cmd) {
 
 }
 
-func upgradeNodeGroup(cmd *cmdutils.Cmd, options managed.UpgradeOptions) error {
+func upgradeNodeGroup(cmd *cmdutils.Cmd, options nodegroup.UpgradeOptions) error {
 	cfg := cmd.ClusterConfig
 	if cfg.Metadata.Name == "" {
 		return cmdutils.ErrMustBeSet(cmdutils.ClusterNameFlag(cmd))
@@ -78,6 +78,5 @@ func upgradeNodeGroup(cmd *cmdutils.Cmd, options managed.UpgradeOptions) error {
 		return err
 	}
 
-	return nodegroup.New(cfg, ctl, clientSet).Upgrade(options)
-
+	return nodegroup.New(cfg, ctl, clientSet).Upgrade(context.TODO(), options)
 }

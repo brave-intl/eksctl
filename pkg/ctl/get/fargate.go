@@ -1,7 +1,6 @@
 package get
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/kris-nova/logger"
@@ -59,24 +58,14 @@ func configureGetFargateProfileCmd(cmd *cmdutils.Cmd) *options {
 }
 
 func doGetFargateProfile(cmd *cmdutils.Cmd, options *options) error {
-	ctl, err := cmd.NewProviderForExistingCluster()
-	if err != nil {
-		return err
-	}
-
-	if options.output == printers.TableType {
-		cmdutils.LogRegionAndVersionInfo(cmd.ClusterConfig.Metadata)
-	} else {
+	if options.output != printers.TableType {
 		//log warnings and errors to stderr
 		logger.Writer = os.Stderr
 	}
 
-	supportsFargate, err := ctl.SupportsFargate(cmd.ClusterConfig)
+	ctl, err := cmd.NewProviderForExistingCluster()
 	if err != nil {
 		return err
-	}
-	if !supportsFargate {
-		return fmt.Errorf("Fargate is not supported for this cluster version. Please update the cluster to be at least eks.%d", fargate.MinPlatformVersion)
 	}
 
 	clusterName := cmd.ClusterConfig.Metadata.Name

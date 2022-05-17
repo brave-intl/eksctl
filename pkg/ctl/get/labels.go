@@ -1,6 +1,7 @@
 package get
 
 import (
+	"context"
 	"os"
 
 	"github.com/weaveworks/eksctl/pkg/cfn/manager"
@@ -8,9 +9,10 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"k8s.io/apimachinery/pkg/labels"
+
 	"github.com/weaveworks/eksctl/pkg/actions/label"
 	"github.com/weaveworks/eksctl/pkg/printers"
-	"k8s.io/apimachinery/pkg/labels"
 
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/ctl/cmdutils"
@@ -51,11 +53,10 @@ func getLabels(cmd *cmdutils.Cmd, nodeGroupName string) error {
 	if err != nil {
 		return err
 	}
-	cmdutils.LogRegionAndVersionInfo(cmd.ClusterConfig.Metadata)
 
-	service := managed.NewService(ctl.Provider.EKS(), ctl.Provider.SSM(), ctl.Provider.EC2(), manager.NewStackCollection(ctl.Provider, cfg), cfg.Metadata.Name)
+	service := managed.NewService(ctl.Provider.EKS(), ctl.Provider.EC2(), manager.NewStackCollection(ctl.Provider, cfg), cfg.Metadata.Name)
 	manager := label.New(cfg.Metadata.Name, service, ctl.Provider.EKS())
-	labels, err := manager.Get(nodeGroupName)
+	labels, err := manager.Get(context.TODO(), nodeGroupName)
 	if err != nil {
 		return err
 	}

@@ -153,7 +153,11 @@ var _ = Describe("(Integration) Create, Get, Scale & Delete", func() {
 		Context("and listing clusters", func() {
 			It("should return the previously created cluster", func() {
 				cmd := params.EksctlGetCmd.WithArgs("clusters", "--all-regions")
-				Expect(cmd).To(RunSuccessfullyWithOutputString(ContainSubstring(params.ClusterName)))
+				AssertContainsCluster(cmd, GetClusterOutput{
+					ClusterName:   params.ClusterName,
+					Region:        params.Region,
+					EksctlCreated: "True",
+				})
 			})
 		})
 
@@ -185,7 +189,7 @@ var _ = Describe("(Integration) Create, Get, Scale & Delete", func() {
 						Region: params.Region,
 					},
 				}
-				ctl, err := eks.New(&api.ProviderConfig{Region: params.Region}, cfg)
+				ctl, err := eks.New(context.TODO(), &api.ProviderConfig{Region: params.Region}, cfg)
 				Expect(err).NotTo(HaveOccurred())
 				err = ctl.RefreshClusterStatus(cfg)
 				Expect(err).ShouldNot(HaveOccurred())
@@ -315,9 +319,9 @@ var _ = Describe("(Integration) Create, Get, Scale & Delete", func() {
 						Region: params.Region,
 					},
 				}
-				ctl, err := eks.New(&api.ProviderConfig{Region: params.Region}, cfg)
+				ctl, err := eks.New(context.TODO(), &api.ProviderConfig{Region: params.Region}, cfg)
 				Expect(err).NotTo(HaveOccurred())
-				cl, err := ctl.GetCluster(params.ClusterName)
+				cl, err := ctl.GetCluster(context.Background(), params.ClusterName)
 				Expect(err).NotTo(HaveOccurred())
 				awsSession := NewSession(params.Region)
 				ec2 := awsec2.New(awsSession)
@@ -420,6 +424,11 @@ var _ = Describe("(Integration) Create, Get, Scale & Delete", func() {
 							Name:         "test-containerd",
 							AMIFamily:    api.NodeImageFamilyAmazonLinux2,
 							InstanceType: "p2.xlarge",
+							AdditionalVolumes: []*api.VolumeMapping{
+								{
+									VolumeName: aws.String("/dev/sdb"),
+								},
+							},
 						},
 						ContainerRuntime: aws.String(api.ContainerRuntimeContainerD),
 					},
@@ -430,10 +439,12 @@ var _ = Describe("(Integration) Create, Get, Scale & Delete", func() {
 						"nodegroup",
 						"--config-file", "-",
 						"--verbose", "4",
+						"--timeout", "50m",
 					).
 					WithoutArg("--region", params.Region).
 					WithStdin(clusterutils.Reader(clusterConfig))
 				Expect(cmd).To(RunSuccessfully())
+				tests.AssertNodeVolumes(params.KubeconfigPath, params.Region, "test-containerd", "/dev/sdb")
 			})
 		})
 
@@ -455,9 +466,13 @@ var _ = Describe("(Integration) Create, Get, Scale & Delete", func() {
 					"--name", mngNG1,
 					"-o", "yaml",
 				)
-				Expect(getMngNgCmd).To(RunSuccessfullyWithOutputString(ContainSubstring("MaxSize: 4")))
-				Expect(getMngNgCmd).To(RunSuccessfullyWithOutputString(ContainSubstring("MinSize: 4")))
-				Expect(getMngNgCmd).To(RunSuccessfullyWithOutputString(ContainSubstring("DesiredCapacity: 4")))
+				Expect(getMngNgCmd).To(RunSuccessfullyWithOutputStringLines(
+					ContainElement(ContainSubstring("Type: managed")),
+					ContainElement(ContainSubstring("MaxSize: 4")),
+					ContainElement(ContainSubstring("MinSize: 4")),
+					ContainElement(ContainSubstring("DesiredCapacity: 4")),
+				),
+				)
 			})
 
 			It("should scale all nodegroups", func() {
@@ -475,9 +490,13 @@ var _ = Describe("(Integration) Create, Get, Scale & Delete", func() {
 					"--name", mngNG1,
 					"-o", "yaml",
 				)
-				Expect(getMngNgCmd).To(RunSuccessfullyWithOutputString(ContainSubstring("MaxSize: 5")))
-				Expect(getMngNgCmd).To(RunSuccessfullyWithOutputString(ContainSubstring("MinSize: 5")))
-				Expect(getMngNgCmd).To(RunSuccessfullyWithOutputString(ContainSubstring("DesiredCapacity: 5")))
+
+				Expect(getMngNgCmd).To(RunSuccessfullyWithOutputStringLines(
+					ContainElement(ContainSubstring("MaxSize: 5"))),
+					ContainElement(ContainSubstring("MinSize: 5")),
+					ContainElement(ContainSubstring("DesiredCapacity: 5")),
+					ContainElement(ContainSubstring("Type: managed")),
+				)
 
 				getUnmNgCmd := params.EksctlGetCmd.WithArgs(
 					"nodegroup",
@@ -485,9 +504,13 @@ var _ = Describe("(Integration) Create, Get, Scale & Delete", func() {
 					"--name", unmNG1,
 					"-o", "yaml",
 				)
-				Expect(getUnmNgCmd).To(RunSuccessfullyWithOutputString(ContainSubstring("MaxSize: 5")))
-				Expect(getUnmNgCmd).To(RunSuccessfullyWithOutputString(ContainSubstring("MinSize: 5")))
-				Expect(getUnmNgCmd).To(RunSuccessfullyWithOutputString(ContainSubstring("DesiredCapacity: 5")))
+
+				Expect(getUnmNgCmd).To(RunSuccessfullyWithOutputStringLines(
+					ContainElement(ContainSubstring("MaxSize: 5"))),
+					ContainElement(ContainSubstring("MinSize: 5")),
+					ContainElement(ContainSubstring("DesiredCapacity: 5")),
+					ContainElement(ContainSubstring("Type: unmanaged")),
+				)
 			})
 		})
 
@@ -498,7 +521,7 @@ var _ = Describe("(Integration) Create, Get, Scale & Delete", func() {
 					"--timeout=45m",
 					"--cluster", params.ClusterName,
 					"--nodes", "1",
-					"--node-type", "p2.xlarge",
+					"--instance-types", "p2.xlarge,p3.2xlarge,p3.8xlarge,g3s.xlarge,g4ad.xlarge,g4ad.2xlarge",
 					"--node-private-networking",
 					"--node-zones", "us-west-2b,us-west-2c",
 					mngNG2,
@@ -562,7 +585,7 @@ var _ = Describe("(Integration) Create, Get, Scale & Delete", func() {
 						},
 					}
 					var err error
-					ctl, err = eks.New(&api.ProviderConfig{Region: params.Region}, cfg)
+					ctl, err = eks.New(context.TODO(), &api.ProviderConfig{Region: params.Region}, cfg)
 					Expect(err).NotTo(HaveOccurred())
 				})
 
@@ -687,7 +710,7 @@ var _ = Describe("(Integration) Create, Get, Scale & Delete", func() {
 							Region: params.Region,
 						},
 					}
-					ctl, err = eks.New(&api.ProviderConfig{Region: params.Region}, cfg)
+					ctl, err = eks.New(context.TODO(), &api.ProviderConfig{Region: params.Region}, cfg)
 					Expect(err).NotTo(HaveOccurred())
 					err = ctl.RefreshClusterStatus(cfg)
 					Expect(err).ShouldNot(HaveOccurred())
@@ -697,7 +720,7 @@ var _ = Describe("(Integration) Create, Get, Scale & Delete", func() {
 
 				It("should enable OIDC, create two iamserviceaccounts and update the policies", func() {
 					{
-						exists, err := oidc.CheckProviderExists()
+						exists, err := oidc.CheckProviderExists(context.Background())
 						Expect(err).ShouldNot(HaveOccurred())
 						Expect(exists).To(BeFalse())
 					}
@@ -710,7 +733,7 @@ var _ = Describe("(Integration) Create, Get, Scale & Delete", func() {
 					Expect(setupCmd).To(RunSuccessfully())
 
 					{
-						exists, err := oidc.CheckProviderExists()
+						exists, err := oidc.CheckProviderExists(context.Background())
 						Expect(err).ShouldNot(HaveOccurred())
 						Expect(exists).To(BeTrue())
 					}

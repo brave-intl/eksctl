@@ -1,21 +1,21 @@
 package addons
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/weaveworks/eksctl/pkg/actions/irsa"
-
-	"github.com/weaveworks/eksctl/pkg/cfn/manager"
-
 	"github.com/pkg/errors"
+
+	"github.com/weaveworks/eksctl/pkg/actions/irsa"
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
+	"github.com/weaveworks/eksctl/pkg/cfn/manager"
 	iamoidc "github.com/weaveworks/eksctl/pkg/iam/oidc"
 )
 
 // IRSAHelper provides methods for enabling IRSA
 type IRSAHelper interface {
-	IsSupported() (bool, error)
-	CreateOrUpdate(serviceAccounts *api.ClusterIAMServiceAccount) error
+	IsSupported(ctx context.Context) (bool, error)
+	CreateOrUpdate(ctx context.Context, serviceAccounts *api.ClusterIAMServiceAccount) error
 }
 
 // irsaHelper applies the annotations required for a ServiceAccount to work with IRSA
@@ -37,25 +37,28 @@ func NewIRSAHelper(oidc *iamoidc.OpenIDConnectManager, stackManager manager.Stac
 }
 
 // IsSupported checks whether IRSA is supported or not
-func (h *irsaHelper) IsSupported() (bool, error) {
-	exists, err := h.oidc.CheckProviderExists()
+func (h *irsaHelper) IsSupported(ctx context.Context) (bool, error) {
+	exists, err := h.oidc.CheckProviderExists(ctx)
 	if err != nil {
 		return false, errors.Wrapf(err, "error checking OIDC provider")
 	}
 	return exists, nil
 }
 
-// Create creates IRSA for the specified IAM service accounts
-func (h *irsaHelper) CreateOrUpdate(sa *api.ClusterIAMServiceAccount) error {
+// CreateOrUpdate creates IRSA for the specified IAM service accounts or updates it
+func (h *irsaHelper) CreateOrUpdate(ctx context.Context, sa *api.ClusterIAMServiceAccount) error {
 	serviceAccounts := []*api.ClusterIAMServiceAccount{sa}
-	stacks, err := h.stackManager.ListStacksMatching(makeIAMServiceAccountStackName(h.clusterName, sa.Namespace, sa.Name))
+	name := makeIAMServiceAccountStackName(h.clusterName, sa.Namespace, sa.Name)
+	stack, err := h.stackManager.DescribeStack(ctx, &manager.Stack{StackName: &name})
 	if err != nil {
-		return errors.Wrapf(err, "error checking if iamserviceaccount %s/%s exists", sa.Namespace, sa.Name)
+		if !manager.IsStackDoesNotExistError(err) {
+			return errors.Wrapf(err, "error checking if iamserviceaccount %s/%s exists", sa.Namespace, sa.Name)
+		}
 	}
-	if len(stacks) == 0 {
+	if stack == nil {
 		err = h.irsaManager.CreateIAMServiceAccount(serviceAccounts, false)
 	} else {
-		err = h.irsaManager.UpdateIAMServiceAccounts(serviceAccounts, false)
+		err = h.irsaManager.UpdateIAMServiceAccounts(ctx, serviceAccounts, []*manager.Stack{stack}, false)
 	}
 	return err
 }

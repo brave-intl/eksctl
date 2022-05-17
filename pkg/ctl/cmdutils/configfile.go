@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/kris-nova/logger"
@@ -17,6 +18,7 @@ import (
 	"github.com/weaveworks/eksctl/pkg/ctl/cmdutils/filter"
 	"github.com/weaveworks/eksctl/pkg/eks"
 	"github.com/weaveworks/eksctl/pkg/utils/names"
+	utilstrings "github.com/weaveworks/eksctl/pkg/utils/strings"
 )
 
 // AddConfigFileFlag adds common --config-file flag
@@ -232,16 +234,14 @@ func NewCreateClusterLoader(cmd *Cmd, ngFilter *filter.NodeGroupFilter, ng *api.
 
 	l.validateWithConfigFile = func() error {
 		clusterConfig := l.ClusterConfig
-		if clusterConfig.KubernetesNetworkConfig != nil && clusterConfig.KubernetesNetworkConfig.IPv6Enabled() {
-			clusterConfig.VPC = &api.ClusterVPC{}
-		} else {
-			if clusterConfig.VPC == nil {
-				clusterConfig.VPC = api.NewClusterVPC()
-			}
+		ipv6Enabled := clusterConfig.IPv6Enabled()
 
-			if clusterConfig.VPC.NAT == nil {
-				clusterConfig.VPC.NAT = api.DefaultClusterNAT()
-			}
+		if clusterConfig.VPC == nil {
+			clusterConfig.VPC = api.NewClusterVPC(ipv6Enabled)
+		}
+
+		if clusterConfig.VPC.NAT == nil && !ipv6Enabled {
+			clusterConfig.VPC.NAT = api.DefaultClusterNAT()
 		}
 
 		if clusterConfig.VPC.NAT != nil && api.IsEmpty(clusterConfig.VPC.NAT.Gateway) {
@@ -256,8 +256,8 @@ func NewCreateClusterLoader(cmd *Cmd, ngFilter *filter.NodeGroupFilter, ng *api.
 
 		api.SetClusterEndpointAccessDefaults(clusterConfig.VPC)
 
-		if !clusterConfig.HasClusterEndpointAccess() {
-			return api.ErrClusterEndpointNoAccess
+		if err := clusterConfig.ValidateClusterEndpointConfig(); err != nil {
+			return err
 		}
 
 		if clusterConfig.HasAnySubnets() && len(clusterConfig.AvailabilityZones) != 0 {
@@ -291,6 +291,10 @@ func NewCreateClusterLoader(cmd *Cmd, ngFilter *filter.NodeGroupFilter, ng *api.
 
 		if l.ClusterConfig.Status != nil {
 			return fmt.Errorf("status fields are read-only")
+		}
+
+		if err := validateZonesAndNodeZones(l.CobraCommand); err != nil {
+			return fmt.Errorf("validation for --zones and --node-zones failed: %w", err)
 		}
 
 		if err := validateManagedNGFlags(l.CobraCommand, params.Managed); err != nil {
@@ -338,6 +342,23 @@ func NewCreateClusterLoader(cmd *Cmd, ngFilter *filter.NodeGroupFilter, ng *api.
 	}
 
 	return l
+}
+
+func validateZonesAndNodeZones(cmd *cobra.Command) error {
+	if nodeZonesFlag := cmd.Flag("node-zones"); nodeZonesFlag != nil && nodeZonesFlag.Changed {
+		zonesFlag := cmd.Flag("zones")
+		if zonesFlag == nil || !zonesFlag.Changed {
+			return errors.New("zones must be defined if node-zones is provided and must be a superset of node-zones")
+		}
+		nodeZones := strings.Split(strings.Trim(nodeZonesFlag.Value.String(), "[]"), ",")
+		zones := strings.Split(strings.Trim(zonesFlag.Value.String(), "[]"), ",")
+		for _, zone := range nodeZones {
+			if !utilstrings.Contains(zones, zone) {
+				return fmt.Errorf("node-zones %s must be a subset of zones %s; %q was not found in zones", nodeZones, zones, zone)
+			}
+		}
+	}
+	return nil
 }
 
 func validateDryRunOptions(cmd *cobra.Command, incompatibleFlags []string) error {
@@ -497,8 +518,8 @@ func normalizeBaseNodeGroup(np api.NodePool, cmd *cobra.Command) {
 	}
 }
 
-// NewDeleteNodeGroupLoader will load config or use flags for 'eksctl delete nodegroup'
-func NewDeleteNodeGroupLoader(cmd *Cmd, ng *api.NodeGroup, ngFilter *filter.NodeGroupFilter) ClusterConfigLoader {
+// NewDeleteAndDrainNodeGroupLoader will load config or use flags for 'eksctl delete nodegroup'
+func NewDeleteAndDrainNodeGroupLoader(cmd *Cmd, ng *api.NodeGroup, ngFilter *filter.NodeGroupFilter) ClusterConfigLoader {
 	l := newCommonClusterConfigLoader(cmd)
 
 	l.validateWithConfigFile = func() error {
@@ -524,6 +545,12 @@ func NewDeleteNodeGroupLoader(cmd *Cmd, ng *api.NodeGroup, ngFilter *filter.Node
 
 		if ng.Name == "" {
 			return ErrMustBeSet("--name")
+		}
+
+		if flag := l.CobraCommand.Flag("parallel"); flag != nil && flag.Changed {
+			if val, _ := strconv.Atoi(flag.Value.String()); val > 25 || val < 1 {
+				return fmt.Errorf("--parallel value must be of range 1-25")
+			}
 		}
 
 		ngFilter.AppendIncludeNames(ng.Name)
@@ -563,6 +590,9 @@ func NewUtilsEnableEndpointAccessLoader(cmd *Cmd, privateAccess, publicAccess bo
 			return err
 		}
 
+		if cmd.ClusterConfig.VPC.ClusterEndpoints == nil {
+			cmd.ClusterConfig.VPC.ClusterEndpoints = api.ClusterEndpointAccessDefaults()
+		}
 		if flag := l.CobraCommand.Flag("private-access"); flag != nil && flag.Changed {
 			cmd.ClusterConfig.VPC.ClusterEndpoints.PrivateAccess = &privateAccess
 		} else {
@@ -579,7 +609,7 @@ func NewUtilsEnableEndpointAccessLoader(cmd *Cmd, privateAccess, publicAccess bo
 	}
 	l.validateWithConfigFile = func() error {
 		if l.ClusterConfig.VPC == nil {
-			l.ClusterConfig.VPC = api.NewClusterVPC()
+			l.ClusterConfig.VPC = api.NewClusterVPC(false)
 		}
 		api.SetClusterEndpointAccessDefaults(l.ClusterConfig.VPC)
 		return nil

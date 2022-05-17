@@ -1,16 +1,17 @@
 package addon
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
-
+	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/kris-nova/logger"
 
-	"github.com/aws/aws-sdk-go/service/eks"
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
+	"github.com/weaveworks/eksctl/pkg/cfn/manager"
 )
 
 func (a *Manager) DeleteWithPreserve(addon *api.Addon) error {
@@ -31,7 +32,7 @@ func (a *Manager) DeleteWithPreserve(addon *api.Addon) error {
 	return nil
 }
 
-func (a *Manager) Delete(addon *api.Addon) error {
+func (a *Manager) Delete(ctx context.Context, addon *api.Addon) error {
 	addonExists := true
 	logger.Debug("addon: %v", addon)
 	logger.Info("deleting addon: %s", addon.Name)
@@ -51,15 +52,15 @@ func (a *Manager) Delete(addon *api.Addon) error {
 		logger.Info("deleted addon: %s", addon.Name)
 	}
 
-	stacks, err := a.stackManager.ListStacksMatching(a.makeAddonName(addon.Name))
+	stack, err := a.stackManager.DescribeStack(ctx, &manager.Stack{StackName: aws.String(a.makeAddonName(addon.Name))})
 	if err != nil {
-		return fmt.Errorf("failed to list stacks: %v", err)
+		if !manager.IsStackDoesNotExistError(err) {
+			return fmt.Errorf("failed to get stack: %w", err)
+		}
 	}
-
-	if len(stacks) != 0 {
+	if stack != nil {
 		logger.Info("deleting associated IAM stacks")
-		_, err = a.stackManager.DeleteStackByName(a.makeAddonName(addon.Name))
-		if err != nil {
+		if _, err = a.stackManager.DeleteStackBySpec(ctx, stack); err != nil {
 			return fmt.Errorf("failed to delete cloudformation stack %q: %v", a.makeAddonName(addon.Name), err)
 		}
 	} else {

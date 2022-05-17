@@ -1,0 +1,41 @@
+name: Link checker
+
+on:
+  pull_request:
+    paths:
+      - 'userdocs/**'
+      - '**.md'
+  push:
+    branches:
+      - main
+    paths:
+      - 'userdocs/**'
+      - '**.md'
+
+jobs:
+  link-checker:
+    name: Check site links
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.9]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.18.x
+      - name: Install doc dependencies
+        run: make install-site-deps
+      - name: Build docs for link check
+        run: make build-pages
+        # Using link-checker action to check links in Markdown, HTML files
+      - name: Link Checker
+        uses: lycheeverse/lychee-action@c0d1093b783f7ad0c445884b01da0215b2da29ee #v1.4.1
+        with:
+          fail: true
+          args: --exclude-all-private --exclude-file .github/workflows/exclude-file.txt --verbose --no-progress './**/*.md' './**/*.html'

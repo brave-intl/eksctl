@@ -82,6 +82,25 @@ var _ = Describe("ClusterConfig validation", func() {
 	})
 
 	Describe("nodeGroups[*].containerRuntime validation", func() {
+
+		It("allows accepted values", func() {
+			cfg := api.NewClusterConfig()
+			ng0 := cfg.NewNodeGroup()
+			ng0.Name = "node-group"
+			ng0.ContainerRuntime = aws.String(api.ContainerRuntimeDockerForWindows)
+			err := api.ValidateNodeGroup(0, ng0)
+			Expect(err).NotTo(HaveOccurred())
+
+			ng0.ContainerRuntime = aws.String(api.ContainerRuntimeDockerD)
+			err = api.ValidateNodeGroup(0, ng0)
+			Expect(err).NotTo(HaveOccurred())
+
+			ng0.ContainerRuntime = aws.String(api.ContainerRuntimeContainerD)
+			ng0.AMIFamily = api.NodeImageFamilyAmazonLinux2
+			err = api.ValidateNodeGroup(0, ng0)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
 		It("should reject invalid container runtime", func() {
 			cfg := api.NewClusterConfig()
 			ng0 := cfg.NewNodeGroup()
@@ -92,7 +111,8 @@ var _ = Describe("ClusterConfig validation", func() {
 			err = api.ValidateNodeGroup(0, ng0)
 			Expect(err).To(HaveOccurred())
 		})
-		It("containerd is only allowed for AL2", func() {
+
+		It("containerd is only allowed for AL2 or Windows", func() {
 			cfg := api.NewClusterConfig()
 			ng0 := cfg.NewNodeGroup()
 			ng0.Name = "node-group"
@@ -102,6 +122,54 @@ var _ = Describe("ClusterConfig validation", func() {
 			Expect(err).NotTo(HaveOccurred())
 			err = api.ValidateNodeGroup(0, ng0)
 			Expect(err).To(HaveOccurred())
+			ng0.AMIFamily = api.NodeImageFamilyWindowsServer2019CoreContainer
+			err = api.ValidateClusterConfig(cfg)
+			Expect(err).NotTo(HaveOccurred())
+			err = api.ValidateNodeGroup(0, ng0)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Describe("nodeGroups[*].ami validation", func() {
+		It("should require overrideBootstrapCommand if ami is set", func() {
+			cfg := api.NewClusterConfig()
+			ng0 := cfg.NewNodeGroup()
+			ng0.Name = "node-group"
+			ng0.AMI = "ami-1234"
+			Expect(api.ValidateNodeGroup(0, ng0)).To(MatchError(ContainSubstring("overrideBootstrapCommand is required when using a custom AMI ")))
+		})
+		It("should accept ami with a overrideBootstrapCommand set", func() {
+			cfg := api.NewClusterConfig()
+			ng0 := cfg.NewNodeGroup()
+			ng0.Name = "node-group"
+			ng0.AMI = "ami-1234"
+			ng0.OverrideBootstrapCommand = aws.String("echo 'yo'")
+			Expect(api.ValidateNodeGroup(0, ng0)).To(Succeed())
+		})
+	})
+
+	Describe("nodeGroups[*].maxInstanceLifetime validation", func() {
+		It("should reject if value is below a day", func() {
+			cfg := api.NewClusterConfig()
+			ng0 := cfg.NewNodeGroup()
+			ng0.Name = "node-group"
+			ng0.MaxInstanceLifetime = aws.Int(5)
+			err := api.ValidateClusterConfig(cfg)
+			Expect(err).NotTo(HaveOccurred())
+			err = api.ValidateNodeGroup(0, ng0)
+			Expect(err).To(MatchError(ContainSubstring("maximum instance lifetime must have a minimum value of 86,400 seconds (one day), but was: 5")))
+		})
+		It("setting it if greater than or equal to one day", func() {
+			cfg := api.NewClusterConfig()
+			ng0 := cfg.NewNodeGroup()
+			ng0.Name = "node-group"
+			ng0.MaxInstanceLifetime = aws.Int(api.OneDay)
+			err := api.ValidateClusterConfig(cfg)
+			Expect(err).NotTo(HaveOccurred())
+			err = api.ValidateNodeGroup(0, ng0)
+			Expect(err).NotTo(HaveOccurred())
+			ng0.MaxInstanceLifetime = aws.Int(api.OneDay + 1000)
+			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
@@ -272,6 +340,14 @@ var _ = Describe("ClusterConfig validation", func() {
 
 			err = api.ValidateNodeGroup(1, ng1)
 			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("should not allow setting AWSLoadBalancerController and albIngress", func() {
+			ng1.IAM.WithAddonPolicies.AWSLoadBalancerController = aws.Bool(true)
+			ng1.IAM.WithAddonPolicies.DeprecatedALBIngress = aws.Bool(true)
+
+			err = api.ValidateNodeGroup(1, ng1)
+			Expect(err).To(MatchError(`"awsLoadBalancerController" and "albIngress" cannot both be configured, please use "awsLoadBalancerController" as "albIngress" is deprecated`))
 		})
 
 		It("should allow setting instanceProfileARN and instanceRoleARN", func() {
@@ -549,44 +625,60 @@ var _ = Describe("ClusterConfig validation", func() {
 		}),
 	)
 
-	Describe("cluster endpoint access config", func() {
-		var (
-			cfg *api.ClusterConfig
-			vpc *api.ClusterVPC
-			err error
-		)
+	Describe("Cluster Endpoint access", func() {
+		var cfg *api.ClusterConfig
 
 		BeforeEach(func() {
 			cfg = api.NewClusterConfig()
-			vpc = api.NewClusterVPC()
-			cfg.VPC = vpc
 		})
 
-		It("should not error on private=true, public=true", func() {
-			cfg.VPC.ClusterEndpoints =
-				&api.ClusterEndpoints{PrivateAccess: api.Enabled(), PublicAccess: api.Enabled()}
-			err = cfg.ValidateClusterEndpointConfig()
-			Expect(err).NotTo(HaveOccurred())
+		When("VPC is not set", func() {
+			It("should have cluster endpoint access", func() {
+				err := api.ValidateClusterConfig(cfg)
+				Expect(err).NotTo(HaveOccurred())
+			})
 		})
 
-		It("should not error on private=false, public=true", func() {
-			cfg.VPC.ClusterEndpoints =
-				&api.ClusterEndpoints{PrivateAccess: api.Disabled(), PublicAccess: api.Enabled()}
-			err = cfg.ValidateClusterEndpointConfig()
-			Expect(err).NotTo(HaveOccurred())
-		})
+		When("VPC is set", func() {
+			BeforeEach(func() {
+				cfg.VPC = &api.ClusterVPC{}
+			})
 
-		It("should not error on private=true, public=false", func() {
-			cfg.VPC.ClusterEndpoints =
-				&api.ClusterEndpoints{PrivateAccess: api.Enabled(), PublicAccess: api.Disabled()}
-			err = cfg.ValidateClusterEndpointConfig()
-			Expect(err).NotTo(HaveOccurred())
-		})
+			When("no cluster endpoint config is set", func() {
+				It("should not error", func() {
+					err := api.ValidateClusterConfig(cfg)
+					Expect(err).NotTo(HaveOccurred())
+				})
+			})
 
-		It("should error on private=false, public=false", func() {
-			cfg.VPC.ClusterEndpoints = &api.ClusterEndpoints{PrivateAccess: api.Disabled(), PublicAccess: api.Disabled()}
-			err = cfg.ValidateClusterEndpointConfig()
-			Expect(err).To(BeIdenticalTo(api.ErrClusterEndpointNoAccess))
+			When("cluster endpoint config exists", func() {
+				It("should not error on private=true, public=true", func() {
+					cfg.VPC.ClusterEndpoints =
+						&api.ClusterEndpoints{PrivateAccess: api.Enabled(), PublicAccess: api.Enabled()}
+					err := api.ValidateClusterConfig(cfg)
+					Expect(err).NotTo(HaveOccurred())
+				})
+
+				It("should not error on private=false, public=true", func() {
+					cfg.VPC.ClusterEndpoints =
+						&api.ClusterEndpoints{PrivateAccess: api.Disabled(), PublicAccess: api.Enabled()}
+					err := api.ValidateClusterConfig(cfg)
+					Expect(err).NotTo(HaveOccurred())
+				})
+
+				It("should not error on private=true, public=false", func() {
+					cfg.VPC.ClusterEndpoints =
+						&api.ClusterEndpoints{PrivateAccess: api.Enabled(), PublicAccess: api.Disabled()}
+					err := api.ValidateClusterConfig(cfg)
+					Expect(err).NotTo(HaveOccurred())
+				})
+
+				It("should error on private=false, public=false", func() {
+					cfg.VPC.ClusterEndpoints = &api.ClusterEndpoints{PrivateAccess: api.Disabled(), PublicAccess: api.Disabled()}
+					err := api.ValidateClusterConfig(cfg)
+					Expect(err).To(MatchError(api.ErrClusterEndpointNoAccess))
+				})
+			})
 		})
 	})
 
@@ -598,7 +690,7 @@ var _ = Describe("ClusterConfig validation", func() {
 
 		BeforeEach(func() {
 			cfg = api.NewClusterConfig()
-			vpc = api.NewClusterVPC()
+			vpc = api.NewClusterVPC(false)
 			cfg.VPC = vpc
 			cfg.PrivateCluster = &api.PrivateCluster{
 				Enabled: true,
@@ -606,7 +698,7 @@ var _ = Describe("ClusterConfig validation", func() {
 		})
 		When("private cluster is enabled", func() {
 			It("validates the config", func() {
-				err := cfg.ValidatePrivateCluster()
+				err := api.ValidateClusterConfig(cfg)
 				Expect(err).NotTo(HaveOccurred())
 			})
 		})
@@ -614,7 +706,7 @@ var _ = Describe("ClusterConfig validation", func() {
 			It("fails the validation", func() {
 				cfg.VPC.Subnets = &api.ClusterSubnets{}
 				cfg.VPC.ID = "id"
-				err := cfg.ValidatePrivateCluster()
+				err := api.ValidateClusterConfig(cfg)
 				Expect(err).To(MatchError(ContainSubstring("vpc.subnets.private must be specified in a fully-private cluster when a pre-existing VPC is supplied")))
 			})
 		})
@@ -622,28 +714,28 @@ var _ = Describe("ClusterConfig validation", func() {
 			It("fails the validation", func() {
 				cfg.PrivateCluster.AdditionalEndpointServices = []string{api.EndpointServiceCloudFormation}
 				cfg.PrivateCluster.SkipEndpointCreation = true
-				err := cfg.ValidatePrivateCluster()
+				err := api.ValidateClusterConfig(cfg)
 				Expect(err).To(MatchError(ContainSubstring("privateCluster.additionalEndpointServices cannot be set when privateCluster.skipEndpointCreation is true")))
 			})
 		})
 		When("additional endpoints are defined", func() {
 			It("validates the endpoint configuration", func() {
 				cfg.PrivateCluster.AdditionalEndpointServices = []string{api.EndpointServiceCloudFormation}
-				err := cfg.ValidatePrivateCluster()
+				err := api.ValidateClusterConfig(cfg)
 				Expect(err).NotTo(HaveOccurred())
 			})
 		})
 		When("additional endpoints are defined incorrectly", func() {
 			It("fails the endpoint validation", func() {
 				cfg.PrivateCluster.AdditionalEndpointServices = []string{"unknown"}
-				err := cfg.ValidatePrivateCluster()
+				err := api.ValidateClusterConfig(cfg)
 				Expect(err).To(MatchError(ContainSubstring("invalid value in privateCluster.additionalEndpointServices")))
 			})
 		})
 		When("private cluster is enabled with skip endpoints", func() {
 			It("does not fail the validation", func() {
 				cfg.PrivateCluster.SkipEndpointCreation = true
-				err := cfg.ValidatePrivateCluster()
+				err := api.ValidateClusterConfig(cfg)
 				Expect(err).NotTo(HaveOccurred())
 			})
 		})
@@ -657,7 +749,7 @@ var _ = Describe("ClusterConfig validation", func() {
 
 		BeforeEach(func() {
 			cfg = api.NewClusterConfig()
-			vpc = api.NewClusterVPC()
+			vpc = api.NewClusterVPC(false)
 			cfg.VPC = vpc
 		})
 
@@ -812,7 +904,6 @@ var _ = Describe("ClusterConfig validation", func() {
 							cfg.VPC.NAT = nil
 							err = api.ValidateClusterConfig(cfg)
 							Expect(err).NotTo(HaveOccurred())
-							Expect(cfg.Addons[2].Version).To(Equal("1.10.0"))
 						})
 					})
 
@@ -1069,7 +1160,7 @@ var _ = Describe("ClusterConfig validation", func() {
 
 		BeforeEach(func() {
 			cfg = api.NewClusterConfig()
-			vpc = api.NewClusterVPC()
+			vpc = api.NewClusterVPC(false)
 			cfg.VPC = vpc
 			cfg.PrivateCluster = &api.PrivateCluster{
 				Enabled: true,
@@ -1232,6 +1323,22 @@ var _ = Describe("ClusterConfig validation", func() {
 
 				err := api.ValidateNodeGroup(0, ng)
 				Expect(err).NotTo(HaveOccurred())
+			})
+
+			It("fails in case of arm-gpu distribution instance type", func() {
+				ng.InstanceType = "mixed"
+				ng.InstancesDistribution.InstanceTypes = []string{"r6g.medium"}
+				ng.AMIFamily = api.NodeImageFamilyAmazonLinux2
+				err := api.ValidateNodeGroup(0, ng)
+				Expect(err).To(MatchError("ARM GPU instance types are not supported for unmanaged nodegroups with AMIFamily AmazonLinux2"))
+			})
+
+			It("fails in case of arm-gpu instance type", func() {
+				ng.InstanceType = "r6g.medium"
+				ng.InstancesDistribution.InstanceTypes = nil
+				ng.AMIFamily = api.NodeImageFamilyAmazonLinux2
+				err := api.ValidateNodeGroup(0, ng)
+				Expect(err).To(MatchError("ARM GPU instance types are not supported for unmanaged nodegroups with AMIFamily AmazonLinux2"))
 			})
 
 			It("It fails when instance distribution is enabled and instanceType set", func() {
@@ -1587,6 +1694,17 @@ var _ = Describe("ClusterConfig validation", func() {
 			Expect(err).NotTo(HaveOccurred())
 		})
 
+		It("mutates the AMIFamily to the correct value when the capitalisation is incorrect", func() {
+			ng.AMIFamily = "aMAZONlINUx2"
+			Expect(api.ValidateNodeGroup(0, ng)).To(Succeed())
+			Expect(ng.AMIFamily).To(Equal("AmazonLinux2"))
+
+			mng := api.NewManagedNodeGroup()
+			mng.AMIFamily = "bOTTLEROCKEt"
+			Expect(api.ValidateManagedNodeGroup(0, mng)).To(Succeed())
+			Expect(mng.AMIFamily).To(Equal("Bottlerocket"))
+		})
+
 		It("fails when the AMIFamily is not supported", func() {
 			ng.AMIFamily = "SomeTrash"
 			err := api.ValidateNodeGroup(0, ng)
@@ -1596,14 +1714,12 @@ var _ = Describe("ClusterConfig validation", func() {
 
 	Describe("Windows node groups", func() {
 		It("returns an error with unsupported fields", func() {
-			cmd := "start /wait msiexec.exe"
 			doc := api.InlineDocument{
 				"cgroupDriver": "systemd",
 			}
 
 			ngs := map[string]*api.NodeGroup{
-				"OverrideBootstrapCommand": {NodeGroupBase: &api.NodeGroupBase{OverrideBootstrapCommand: &cmd}},
-				"KubeletExtraConfig":       {KubeletExtraConfig: &doc, NodeGroupBase: &api.NodeGroupBase{}},
+				"KubeletExtraConfig": {KubeletExtraConfig: &doc, NodeGroupBase: &api.NodeGroupBase{}},
 			}
 
 			for name, ng := range ngs {
@@ -1630,17 +1746,36 @@ var _ = Describe("ClusterConfig validation", func() {
 	})
 
 	Describe("Karpenter", func() {
+		It("returns an error when OIDC is not set", func() {
+			cfg := api.NewClusterConfig()
+			cfg.Karpenter = &api.Karpenter{
+				Version: "0.6.1",
+			}
+			Expect(api.ValidateClusterConfig(cfg)).To(MatchError(ContainSubstring("failed to validate karpenter config: iam.withOIDC must be enabled with Karpenter")))
+		})
+
 		It("returns an error when version is missing", func() {
 			cfg := api.NewClusterConfig()
 			cfg.Karpenter = &api.Karpenter{}
 			Expect(api.ValidateClusterConfig(cfg)).To(MatchError(ContainSubstring("version field is required if installing Karpenter is enabled")))
 		})
-		It("returns an error when OIDC is not set", func() {
+
+		It("returns an error when version is missing", func() {
 			cfg := api.NewClusterConfig()
+			cfg.IAM.WithOIDC = aws.Bool(true)
 			cfg.Karpenter = &api.Karpenter{
-				Version: "0.5.1",
+				Version: "isitmeeeyourlookingfoorrrr",
 			}
-			Expect(api.ValidateClusterConfig(cfg)).To(MatchError(ContainSubstring("failed to validate karpenter config: iam.withOIDC must be enabled with Karpenter")))
+			Expect(api.ValidateClusterConfig(cfg)).To(MatchError(ContainSubstring("failed to parse karpenter version")))
+		})
+
+		It("returns an error when the version is not supported", func() {
+			cfg := api.NewClusterConfig()
+			cfg.IAM.WithOIDC = aws.Bool(true)
+			cfg.Karpenter = &api.Karpenter{
+				Version: "0.7.0",
+			}
+			Expect(api.ValidateClusterConfig(cfg)).To(MatchError(ContainSubstring("failed to validate karpenter config: maximum supported version is 0.6")))
 		})
 	})
 
@@ -1736,6 +1871,60 @@ var _ = Describe("ClusterConfig validation", func() {
 			},
 		}),
 	)
+
+	Describe("Availability Zones", func() {
+		When("the config file does not specify any AZ", func() {
+			It("skips validation", func() {
+				Expect(api.ValidateClusterConfig(api.NewClusterConfig())).NotTo(HaveOccurred())
+			})
+		})
+
+		When("the config file contains too few availability zones", func() {
+			It("returns an error", func() {
+				cfg := api.NewClusterConfig()
+				cfg.AvailabilityZones = append(cfg.AvailabilityZones, "az-1")
+				Expect(api.ValidateClusterConfig(cfg)).To(MatchError("only 1 zone(s) specified [az-1], 2 are required (can be non-unique)"))
+			})
+		})
+	})
+
+	Describe("Validate SecretsEncryption", func() {
+		var cfg *api.ClusterConfig
+
+		BeforeEach(func() {
+			cfg = api.NewClusterConfig()
+		})
+
+		When("a key ARN is set", func() {
+			When("the key is valid", func() {
+				It("does not return an error", func() {
+					cfg.SecretsEncryption = &api.SecretsEncryption{
+						KeyARN: "arn:aws:kms:us-west-2:000000000000:key/12345-12345",
+					}
+					err := api.ValidateClusterConfig(cfg)
+					Expect(err).NotTo(HaveOccurred())
+				})
+			})
+
+			When("the key is invalid", func() {
+				It("returns an error", func() {
+					cfg.SecretsEncryption = &api.SecretsEncryption{
+						KeyARN: "invalid:arn",
+					}
+					err := api.ValidateClusterConfig(cfg)
+					Expect(err).To(MatchError(ContainSubstring("invalid ARN")))
+				})
+			})
+		})
+
+		When("a key ARN is not set", func() {
+			It("returns an error", func() {
+				cfg.SecretsEncryption = &api.SecretsEncryption{}
+				err := api.ValidateClusterConfig(cfg)
+				Expect(err).To(MatchError(ContainSubstring("field secretsEncryption.keyARN is required for enabling secrets encryption")))
+			})
+		})
+	})
 })
 
 func newInt(value int) *int {

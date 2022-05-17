@@ -1,6 +1,7 @@
 package nodegroup
 
 import (
+	"context"
 	"fmt"
 
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
@@ -10,7 +11,7 @@ import (
 	"github.com/kris-nova/logger"
 )
 
-func (m *Manager) Delete(nodeGroups []*api.NodeGroup, managedNodeGroups []*api.ManagedNodeGroup, wait, plan bool) error {
+func (m *Manager) Delete(ctx context.Context, nodeGroups []*api.NodeGroup, managedNodeGroups []*api.ManagedNodeGroup, wait, plan bool) error {
 	var nodeGroupsWithStacks []eks.KubeNodeGroup
 
 	for _, n := range nodeGroups {
@@ -18,14 +19,13 @@ func (m *Manager) Delete(nodeGroups []*api.NodeGroup, managedNodeGroups []*api.M
 	}
 
 	tasks := &tasks.TaskTree{Parallel: true}
+	stacks, err := m.stackManager.ListNodeGroupStacks(ctx)
+	if err != nil {
+		return err
+	}
 
 	for _, n := range managedNodeGroups {
-		hasStacks, err := m.hasStacks(n.Name)
-		if err != nil {
-			return err
-		}
-
-		if hasStacks {
+		if m.hasStacks(stacks, n.Name) != nil {
 			nodeGroupsWithStacks = append(nodeGroupsWithStacks, n)
 		} else {
 			tasks.Append(m.stackManager.NewTaskToDeleteUnownedNodeGroup(m.cfg.Metadata.Name, n.Name, m.ctl.Provider.EKS(), nil))
@@ -41,7 +41,7 @@ func (m *Manager) Delete(nodeGroups []*api.NodeGroup, managedNodeGroups []*api.M
 		return false
 	}
 
-	deleteTasks, err := m.stackManager.NewTasksToDeleteNodeGroups(shouldDelete, wait, nil)
+	deleteTasks, err := m.stackManager.NewTasksToDeleteNodeGroups(stacks, shouldDelete, wait, nil)
 	if err != nil {
 		return err
 	}

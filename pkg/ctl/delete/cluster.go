@@ -1,6 +1,7 @@
 package delete
 
 import (
+	"context"
 	"time"
 
 	"github.com/weaveworks/eksctl/pkg/actions/cluster"
@@ -15,16 +16,28 @@ import (
 )
 
 func deleteClusterCmd(cmd *cmdutils.Cmd) {
+	deleteClusterWithRunFunc(cmd, func(cmd *cmdutils.Cmd, force bool, disableNodegroupEviction bool, podEvictionWaitPeriod time.Duration, parallel int) error {
+		return doDeleteCluster(cmd, force, disableNodegroupEviction, podEvictionWaitPeriod, parallel)
+	})
+}
+
+func deleteClusterWithRunFunc(cmd *cmdutils.Cmd, runFunc func(cmd *cmdutils.Cmd, force bool, disableNodegroupEviction bool, podEvictionWaitPeriod time.Duration, parallel int) error) {
 	cfg := api.NewClusterConfig()
 	cmd.ClusterConfig = cfg
 
 	cmd.SetDescription("cluster", "Delete a cluster", "")
 
-	var force bool
+	var (
+		force                    bool
+		disableNodegroupEviction bool
+		podEvictionWaitPeriod    time.Duration
+		parallel                 int
+	)
 	cmd.CobraCommand.RunE = func(_ *cobra.Command, args []string) error {
 		cmd.NameArg = cmdutils.GetNameArg(args)
-		return doDeleteCluster(cmd, force)
+		return runFunc(cmd, force, disableNodegroupEviction, podEvictionWaitPeriod, parallel)
 	}
+
 	cmd.FlagSetGroup.InFlagSet("General", func(fs *pflag.FlagSet) {
 		fs.StringVarP(&cfg.Metadata.Name, "name", "n", "", "EKS cluster name")
 		cmdutils.AddRegionFlag(fs, &cmd.ProviderConfig)
@@ -32,6 +45,10 @@ func deleteClusterCmd(cmd *cmdutils.Cmd) {
 		cmd.Wait = false
 		cmdutils.AddWaitFlag(fs, &cmd.Wait, "deletion of all resources")
 		fs.BoolVar(&force, "force", false, "Force deletion to continue when errors occur")
+		fs.BoolVar(&disableNodegroupEviction, "disable-nodegroup-eviction", false, "Force drain to use delete, even if eviction is supported. This will bypass checking PodDisruptionBudgets, use with caution.")
+		defaultPodEvictionWaitPeriod, _ := time.ParseDuration("10s")
+		fs.DurationVar(&podEvictionWaitPeriod, "pod-eviction-wait-period", defaultPodEvictionWaitPeriod, "Duration to wait after failing to evict a pod")
+		fs.IntVar(&parallel, "parallel", 1, "Number of nodes to drain in parallel. Max 25")
 
 		cmdutils.AddConfigFileFlag(fs, &cmd.ClusterConfigFile)
 		cmdutils.AddTimeoutFlag(fs, &cmd.ProviderConfig.WaitTimeout)
@@ -40,35 +57,40 @@ func deleteClusterCmd(cmd *cmdutils.Cmd) {
 	cmdutils.AddCommonFlagsForAWS(cmd.FlagSetGroup, &cmd.ProviderConfig, true)
 }
 
-func doDeleteCluster(cmd *cmdutils.Cmd, force bool) error {
+func doDeleteCluster(cmd *cmdutils.Cmd, force bool, disableNodegroupEviction bool, podEvictionWaitPeriod time.Duration, parallel int) error {
 	if err := cmdutils.NewMetadataLoader(cmd).Load(); err != nil {
 		return err
 	}
 
 	cfg := cmd.ClusterConfig
 	meta := cmd.ClusterConfig.Metadata
-
 	printer := printers.NewJSONPrinter()
-
 	ctl, err := cmd.NewProviderForExistingCluster()
 	if err != nil {
-		return err
+		if !force {
+			return err
+		}
+		// initialise the controller without refreshing the cluster status.
+		// This can happen if the initial cluster stack failed to create the cluster,
+		// but we still want to remove other created resources and the cluster stack.
+		logger.Warning("failed to create provider for cluster; force = true skipping: %v", err)
+		if ctl, err = cmd.NewCtl(); err != nil {
+			return err
+		}
 	}
-	cmdutils.LogRegionAndVersionInfo(meta)
 
 	logger.Info("deleting EKS cluster %q", meta.Name)
 	if err := printer.LogObj(logger.Debug, "cfg.json = \\\n%s\n", cfg); err != nil {
 		return err
 	}
 
-	if ok, err := ctl.CanDelete(cfg); !ok {
-		return err
-	}
-
-	cluster, err := cluster.New(cfg, ctl)
+	ctx := context.TODO()
+	cluster, err := cluster.New(ctx, cfg, ctl)
 	if err != nil {
 		return err
 	}
 
-	return cluster.Delete(time.Second*20, cmd.Wait, force)
+	// ProviderConfig.WaitTimeout is not respected by cluster.Delete, which means the operation will never time out.
+	// When this is fixed, a deadline-based Context can be used here.
+	return cluster.Delete(context.TODO(), time.Second*20, podEvictionWaitPeriod, cmd.Wait, force, disableNodegroupEviction, parallel)
 }

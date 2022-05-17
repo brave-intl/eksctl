@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"context"
+
 	"github.com/kris-nova/logger"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -45,7 +47,6 @@ func doAssociateIAMOIDCProvider(cmd *cmdutils.Cmd) error {
 	if err != nil {
 		return err
 	}
-	cmdutils.LogRegionAndVersionInfo(meta)
 
 	if ok, err := ctl.CanOperate(cfg); !ok {
 		return err
@@ -60,7 +61,8 @@ func doAssociateIAMOIDCProvider(cmd *cmdutils.Cmd) error {
 		return err
 	}
 
-	providerExists, err := oidc.CheckProviderExists()
+	ctx := context.TODO()
+	providerExists, err := oidc.CheckProviderExists(ctx)
 	if err != nil {
 		return err
 	}
@@ -68,7 +70,7 @@ func doAssociateIAMOIDCProvider(cmd *cmdutils.Cmd) error {
 	if !providerExists {
 		cmdutils.LogIntendedAction(cmd.Plan, "create IAM Open ID Connect provider for cluster %q in %q", meta.Name, meta.Region)
 		if !cmd.Plan {
-			if err := oidc.CreateProvider(); err != nil {
+			if err := oidc.CreateProvider(ctx); err != nil {
 				return err
 			}
 			logger.Success("created IAM Open ID Connect provider for cluster %q in %q", meta.Name, meta.Region)

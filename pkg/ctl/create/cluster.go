@@ -1,6 +1,7 @@
 package create
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -12,7 +13,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"k8s.io/apimachinery/pkg/runtime"
 	kubeclient "k8s.io/client-go/kubernetes"
+	clientcmdlatest "k8s.io/client-go/tools/clientcmd/api/latest"
 
 	"github.com/weaveworks/eksctl/pkg/actions/addon"
 	"github.com/weaveworks/eksctl/pkg/actions/flux"
@@ -24,8 +27,8 @@ import (
 	"github.com/weaveworks/eksctl/pkg/ctl/cmdutils/filter"
 	"github.com/weaveworks/eksctl/pkg/eks"
 	"github.com/weaveworks/eksctl/pkg/kops"
+	"github.com/weaveworks/eksctl/pkg/kubernetes"
 	"github.com/weaveworks/eksctl/pkg/printers"
-	"github.com/weaveworks/eksctl/pkg/utils"
 	"github.com/weaveworks/eksctl/pkg/utils/kubeconfig"
 	"github.com/weaveworks/eksctl/pkg/utils/kubectl"
 	"github.com/weaveworks/eksctl/pkg/utils/names"
@@ -124,11 +127,6 @@ func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params
 
 	printer := printers.NewJSONPrinter()
 
-	ctl, err := cmd.NewCtl()
-	if err != nil {
-		return err
-	}
-
 	if params.DryRun {
 		originalWriter := logger.Writer
 		logger.Writer = io.Discard
@@ -137,7 +135,10 @@ func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params
 		}()
 	}
 
-	cmdutils.LogRegionAndVersionInfo(meta)
+	ctl, err := cmd.NewCtl()
+	if err != nil {
+		return err
+	}
 
 	if cfg.Metadata.Version == "" || cfg.Metadata.Version == "auto" {
 		cfg.Metadata.Version = api.DefaultVersion
@@ -179,6 +180,8 @@ func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params
 		params.KubeconfigPath = kubeconfig.AutoPath(meta.Name)
 	}
 
+	ctx := context.TODO()
+
 	if checkSubnetsGivenAsFlags(params) {
 		// undo defaulting and reset it, as it's not set via config file;
 		// default value here causes errors as vpc.ImportVPC doesn't
@@ -186,17 +189,13 @@ func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params
 		cfg.VPC.CIDR = nil
 		// load subnets from local map created from flags, into the config
 		for topology := range params.Subnets {
-			if err := vpc.ImportSubnetsFromIDList(ctl.Provider.EC2(), cfg, topology, *params.Subnets[topology]); err != nil {
+			if err := vpc.ImportSubnetsFromIDList(ctx, ctl.Provider.EC2(), cfg, topology, *params.Subnets[topology]); err != nil {
 				return err
 			}
 		}
 	}
 	logFiltered := cmdutils.ApplyFilter(cfg, ngFilter)
 	kubeNodeGroups := cmdutils.ToKubeNodeGroups(cfg)
-
-	if err := eks.ValidateFeatureCompatibility(cfg, kubeNodeGroups); err != nil {
-		return err
-	}
 
 	// Check if flux binary exists early in the process, so it doesn't fail at the end when the cluster
 	// has already been created with a missing flux binary error which should have been caught earlier.
@@ -216,7 +215,7 @@ func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params
 		eks.LogWindowsCompatibility(kubeNodeGroups, cfg.Metadata)
 	}
 
-	if err := createOrImportVPC(cmd, cfg, params, ctl); err != nil {
+	if err := createOrImportVPC(ctx, cmd, cfg, params, ctl); err != nil {
 		return err
 	}
 
@@ -230,7 +229,7 @@ func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params
 		return cmdutils.PrintDryRunConfig(cfg, os.Stdout)
 	}
 
-	if err := nodeGroupService.Normalize(nodePools, cfg.Metadata); err != nil {
+	if err := nodeGroupService.Normalize(ctx, nodePools, cfg.Metadata); err != nil {
 		return err
 	}
 
@@ -266,26 +265,17 @@ func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params
 	}
 
 	logger.Info("if you encounter any issues, check CloudFormation console or try 'eksctl utils describe-stacks --region=%s --cluster=%s'", meta.Region, meta.Name)
-	supportsManagedNodes, err := eks.VersionSupportsManagedNodes(cfg.Metadata.Version)
-	if err != nil {
-		return err
-	}
 
 	eks.LogEnabledFeatures(cfg)
-	postClusterCreationTasks := ctl.CreateExtraClusterConfigTasks(cfg)
-
-	supported, err := utils.IsMinVersion(api.Version1_18, cfg.Metadata.Version)
-	if err != nil {
-		return err
-	}
+	postClusterCreationTasks := ctl.CreateExtraClusterConfigTasks(ctx, cfg)
 
 	var preNodegroupAddons, postNodegroupAddons *tasks.TaskTree
-	if supported && len(cfg.Addons) > 0 {
-		preNodegroupAddons, postNodegroupAddons = addon.CreateAddonTasks(cfg, ctl, true, cmd.ProviderConfig.WaitTimeout)
+	if len(cfg.Addons) > 0 {
+		preNodegroupAddons, postNodegroupAddons = addon.CreateAddonTasks(ctx, cfg, ctl, true, cmd.ProviderConfig.WaitTimeout)
 		postClusterCreationTasks.Append(preNodegroupAddons)
 	}
 
-	taskTree := stackManager.NewTasksToCreateClusterWithNodeGroups(cfg.NodeGroups, cfg.ManagedNodeGroups, supportsManagedNodes, postClusterCreationTasks)
+	taskTree := stackManager.NewTasksToCreateClusterWithNodeGroups(ctx, cfg.NodeGroups, cfg.ManagedNodeGroups, postClusterCreationTasks)
 
 	logger.Info(taskTree.Describe())
 	if errs := taskTree.DoAllSync(); len(errs) > 0 {
@@ -367,9 +357,17 @@ func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params
 				return fmt.Errorf("failed to create addons")
 			}
 		}
+
 		// After we have the cluster config and all the nodes are done, we install Karpenter if necessary.
-		if err := installKarpenter(ctl, cfg, stackManager, clientSet); err != nil {
-			return err
+		if cfg.Karpenter != nil {
+			config := kubeconfig.NewForKubectl(cfg, ctl.GetUsername(), params.AuthenticatorRoleARN, ctl.Provider.Profile())
+			kubeConfigBytes, err := runtime.Encode(clientcmdlatest.Codec, config)
+			if err != nil {
+				return errors.Wrap(err, "generating kubeconfig")
+			}
+			if err := installKarpenter(ctx, ctl, cfg, stackManager, clientSet, kubernetes.NewRESTClientGetter("karpenter", string(kubeConfigBytes))); err != nil {
+				return err
+			}
 		}
 
 		if cfg.HasGitOpsFluxConfigured() {
@@ -417,27 +415,24 @@ func doCreateCluster(cmd *cmdutils.Cmd, ngFilter *filter.NodeGroupFilter, params
 // - service account
 // - identity mapping
 // then proceeds with installing Karpenter using Helm.
-func installKarpenter(ctl *eks.ClusterProvider, cfg *api.ClusterConfig, stackManager manager.StackManager, clientSet *kubeclient.Clientset) error {
-	if cfg.Karpenter == nil {
-		return nil
-	}
-	installer, err := karpenteractions.NewInstaller(cfg, ctl, stackManager, clientSet)
+func installKarpenter(ctx context.Context, ctl *eks.ClusterProvider, cfg *api.ClusterConfig, stackManager manager.StackManager, clientSet *kubeclient.Clientset, restClientGetter *kubernetes.SimpleRESTClientGetter) error {
+	installer, err := karpenteractions.NewInstaller(ctx, cfg, ctl, stackManager, clientSet, restClientGetter)
 	if err != nil {
 		return fmt.Errorf("failed to create installer: %w", err)
 	}
-	if err := installer.Create(); err != nil {
+	if err := installer.Create(ctx); err != nil {
 		return fmt.Errorf("failed to install Karpenter: %w", err)
 	}
 
 	return nil
 }
 
-func createOrImportVPC(cmd *cmdutils.Cmd, cfg *api.ClusterConfig, params *cmdutils.CreateClusterCmdParams, ctl *eks.ClusterProvider) error {
+func createOrImportVPC(ctx context.Context, cmd *cmdutils.Cmd, cfg *api.ClusterConfig, params *cmdutils.CreateClusterCmdParams, ctl *eks.ClusterProvider) error {
 	customNetworkingNotice := "custom VPC/subnets will be used; if resulting cluster doesn't function as expected, make sure to review the configuration of VPC/subnets"
 
 	subnetsGiven := cfg.HasAnySubnets() // this will be false when neither flags nor config has any subnets
 	if !subnetsGiven && params.KopsClusterNameForVPC == "" {
-		if err := ctl.SetAvailabilityZones(cfg, params.AvailabilityZones); err != nil {
+		if err := eks.SetAvailabilityZones(ctx, cfg, params.AvailabilityZones, ctl.Provider.EC2(), ctl.Provider.Region()); err != nil {
 			return err
 		}
 
@@ -474,7 +469,7 @@ func createOrImportVPC(cmd *cmdutils.Cmd, cfg *api.ClusterConfig, params *cmduti
 			return nil
 		}
 
-		if err := kw.UseVPC(ctl.Provider.EC2(), cfg); err != nil {
+		if err := kw.UseVPC(ctx, ctl.Provider.EC2(), cfg); err != nil {
 			return err
 		}
 
@@ -500,7 +495,7 @@ func createOrImportVPC(cmd *cmdutils.Cmd, cfg *api.ClusterConfig, params *cmduti
 		return nil
 	}
 
-	if err := vpc.ImportSubnetsFromSpec(ctl.Provider, cfg); err != nil {
+	if err := vpc.ImportSubnetsFromSpec(ctx, ctl.Provider, cfg); err != nil {
 		return err
 	}
 

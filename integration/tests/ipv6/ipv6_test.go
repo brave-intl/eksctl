@@ -10,13 +10,17 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	cfn "github.com/aws/aws-sdk-go/service/cloudformation"
 	awsec2 "github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/xgfone/netaddr"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+
 	. "github.com/weaveworks/eksctl/integration/matchers"
 	. "github.com/weaveworks/eksctl/integration/runner"
 	"github.com/weaveworks/eksctl/integration/tests"
@@ -25,10 +29,6 @@ import (
 	"github.com/weaveworks/eksctl/pkg/cfn/builder"
 	"github.com/weaveworks/eksctl/pkg/eks"
 	"github.com/weaveworks/eksctl/pkg/testutils"
-	"github.com/xgfone/netaddr"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -62,23 +62,20 @@ var _ = Describe("(Integration) [EKS IPv6 test]", func() {
 
 			clusterConfig = api.NewClusterConfig()
 			clusterConfig.Metadata.Name = clusterName
-			clusterConfig.Metadata.Version = "1.21"
+			clusterConfig.Metadata.Version = api.LatestVersion
 			clusterConfig.Metadata.Region = params.Region
 			clusterConfig.KubernetesNetworkConfig.IPFamily = "iPv6"
 			clusterConfig.VPC.NAT = nil
 			clusterConfig.IAM.WithOIDC = api.Enabled()
 			clusterConfig.Addons = []*api.Addon{
 				{
-					Name:    api.VPCCNIAddon,
-					Version: "latest",
+					Name: api.VPCCNIAddon,
 				},
 				{
-					Name:    api.KubeProxyAddon,
-					Version: "latest",
+					Name: api.KubeProxyAddon,
 				},
 				{
-					Name:    api.CoreDNSAddon,
-					Version: "latest",
+					Name: api.CoreDNSAddon,
 				},
 			}
 			clusterConfig.ManagedNodeGroups = []*api.ManagedNodeGroup{
@@ -141,27 +138,9 @@ var _ = Describe("(Integration) [EKS IPv6 test]", func() {
 			Expect(err).NotTo(HaveOccurred(), vpcOutput.GoString())
 			Expect(vpcOutput.Vpcs[0].Ipv6CidrBlockAssociationSet).To(HaveLen(1))
 
-			// TODO: get rid of this once CF bug is fixed https://github.com/weaveworks/eksctl/issues/4363
-			By("setting AssignIpv6AddressOnCreation to true for each public subnet")
-			var publicSubnets string
-			for _, output := range describeStackOut.Stacks[0].Outputs {
-				if *output.OutputKey == builder.PublicSubnetsOutputKey {
-					publicSubnets = *output.OutputValue
-				}
-			}
-
-			subnetsOutput, err := ec2.DescribeSubnets(&awsec2.DescribeSubnetsInput{
-				SubnetIds: aws.StringSlice(strings.Split(publicSubnets, ",")),
-			})
-			Expect(err).NotTo(HaveOccurred())
-			Expect(len(subnetsOutput.Subnets)).To(BeNumerically(">", 0))
-			for _, s := range subnetsOutput.Subnets {
-				Expect(*s.AssignIpv6AddressOnCreation).To(BeTrue())
-			}
-
 			By("ensuring the K8s cluster has IPv6 enabled")
 			var clientSet *kubernetes.Clientset
-			ctl, err := eks.New(&api.ProviderConfig{Region: params.Region}, clusterConfig)
+			ctl, err := eks.New(context.TODO(), &api.ProviderConfig{Region: params.Region}, clusterConfig)
 			Expect(err).NotTo(HaveOccurred())
 			err = ctl.RefreshClusterStatus(clusterConfig)
 			Expect(err).ShouldNot(HaveOccurred())

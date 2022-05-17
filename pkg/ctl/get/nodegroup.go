@@ -1,11 +1,13 @@
 package get
 
 import (
+	"context"
 	"os"
 	"strconv"
 	"time"
 
 	"github.com/kris-nova/logger"
+
 	"github.com/weaveworks/eksctl/pkg/actions/nodegroup"
 
 	"github.com/pkg/errors"
@@ -13,7 +15,6 @@ import (
 	"github.com/spf13/pflag"
 
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
-	"github.com/weaveworks/eksctl/pkg/cfn/manager"
 	"github.com/weaveworks/eksctl/pkg/ctl/cmdutils"
 	"github.com/weaveworks/eksctl/pkg/printers"
 )
@@ -48,20 +49,18 @@ func doGetNodeGroup(cmd *cmdutils.Cmd, ng *api.NodeGroup, params *getCmdParams) 
 	if err := cmdutils.NewGetNodegroupLoader(cmd, ng).Load(); err != nil {
 		return err
 	}
-	cfg := cmd.ClusterConfig
+
+	if params.output != printers.TableType {
+		//log warnings and errors to stderr
+		logger.Writer = os.Stderr
+	}
 
 	ctl, err := cmd.NewProviderForExistingCluster()
 	if err != nil {
 		return err
 	}
 
-	if params.output == printers.TableType {
-		cmdutils.LogRegionAndVersionInfo(cmd.ClusterConfig.Metadata)
-	} else {
-		//log warnings and errors to stderr
-		logger.Writer = os.Stderr
-	}
-
+	cfg := cmd.ClusterConfig
 	if ok, err := ctl.CanOperate(cfg); !ok {
 		return err
 	}
@@ -71,14 +70,14 @@ func doGetNodeGroup(cmd *cmdutils.Cmd, ng *api.NodeGroup, params *getCmdParams) 
 		return err
 	}
 
-	var summaries []*manager.NodeGroupSummary
+	var summaries []*nodegroup.Summary
 	if ng.Name == "" {
-		summaries, err = nodegroup.New(cfg, ctl, clientSet).GetAll()
+		summaries, err = nodegroup.New(cfg, ctl, clientSet).GetAll(context.Background())
 		if err != nil {
 			return err
 		}
 	} else {
-		summary, err := nodegroup.New(cfg, ctl, clientSet).Get(ng.Name)
+		summary, err := nodegroup.New(cfg, ctl, clientSet).Get(context.Background(), ng.Name)
 		if err != nil {
 			return err
 		}
@@ -107,34 +106,37 @@ func doGetNodeGroup(cmd *cmdutils.Cmd, ng *api.NodeGroup, params *getCmdParams) 
 }
 
 func addSummaryTableColumns(printer *printers.TablePrinter) {
-	printer.AddColumn("CLUSTER", func(s *manager.NodeGroupSummary) string {
+	printer.AddColumn("CLUSTER", func(s *nodegroup.Summary) string {
 		return s.Cluster
 	})
-	printer.AddColumn("NODEGROUP", func(s *manager.NodeGroupSummary) string {
+	printer.AddColumn("NODEGROUP", func(s *nodegroup.Summary) string {
 		return s.Name
 	})
-	printer.AddColumn("STATUS", func(s *manager.NodeGroupSummary) string {
+	printer.AddColumn("STATUS", func(s *nodegroup.Summary) string {
 		return s.Status
 	})
-	printer.AddColumn("CREATED", func(s *manager.NodeGroupSummary) string {
+	printer.AddColumn("CREATED", func(s *nodegroup.Summary) string {
 		return s.CreationTime.Format(time.RFC3339)
 	})
-	printer.AddColumn("MIN SIZE", func(s *manager.NodeGroupSummary) string {
+	printer.AddColumn("MIN SIZE", func(s *nodegroup.Summary) string {
 		return strconv.Itoa(s.MinSize)
 	})
-	printer.AddColumn("MAX SIZE", func(s *manager.NodeGroupSummary) string {
+	printer.AddColumn("MAX SIZE", func(s *nodegroup.Summary) string {
 		return strconv.Itoa(s.MaxSize)
 	})
-	printer.AddColumn("DESIRED CAPACITY", func(s *manager.NodeGroupSummary) string {
+	printer.AddColumn("DESIRED CAPACITY", func(s *nodegroup.Summary) string {
 		return strconv.Itoa(s.DesiredCapacity)
 	})
-	printer.AddColumn("INSTANCE TYPE", func(s *manager.NodeGroupSummary) string {
+	printer.AddColumn("INSTANCE TYPE", func(s *nodegroup.Summary) string {
 		return s.InstanceType
 	})
-	printer.AddColumn("IMAGE ID", func(s *manager.NodeGroupSummary) string {
+	printer.AddColumn("IMAGE ID", func(s *nodegroup.Summary) string {
 		return s.ImageID
 	})
-	printer.AddColumn("ASG NAME", func(s *manager.NodeGroupSummary) string {
+	printer.AddColumn("ASG NAME", func(s *nodegroup.Summary) string {
 		return s.AutoScalingGroupName
+	})
+	printer.AddColumn("TYPE", func(s *nodegroup.Summary) api.NodeGroupType {
+		return s.NodeGroupType
 	})
 }

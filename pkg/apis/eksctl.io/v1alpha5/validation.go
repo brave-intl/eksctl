@@ -32,6 +32,7 @@ const (
 	MaxIO1Iops    = 64000
 	MinGP3Iops    = DefaultNodeVolumeGP3IOPS
 	MaxGP3Iops    = 16000
+	OneDay        = 86400
 )
 
 var (
@@ -111,6 +112,9 @@ func ValidateClusterConfig(cfg *ClusterConfig) error {
 		if err := validateNg(ng.NodeGroupBase, path); err != nil {
 			return err
 		}
+		if ng.DisableASGTagPropagation != nil {
+			logger.Warning("field DisableASGTagPropagation for nodegroup has been deprecated and has no effect. Please use PropagateASGTags instead for nodegroup %s!", ng.Name)
+		}
 	}
 
 	for i, ng := range cfg.ManagedNodeGroups {
@@ -124,12 +128,16 @@ func ValidateClusterConfig(cfg *ClusterConfig) error {
 		return err
 	}
 
+	if err := validateAvailabilityZones(cfg.AvailabilityZones); err != nil {
+		return err
+	}
+
 	if err := cfg.ValidateVPCConfig(); err != nil {
 		return err
 	}
 
-	if cfg.SecretsEncryption != nil && cfg.SecretsEncryption.KeyARN == "" {
-		return errors.New("field secretsEncryption.keyARN is required for enabling secrets encryption")
+	if err := ValidateSecretsEncryption(cfg); err != nil {
+		return err
 	}
 
 	if err := validateKarpenterConfig(cfg); err != nil {
@@ -146,6 +154,16 @@ func validateKarpenterConfig(cfg *ClusterConfig) error {
 	if cfg.Karpenter.Version == "" {
 		return errors.New("version field is required if installing Karpenter is enabled")
 	}
+
+	v, err := version.NewVersion(cfg.Karpenter.Version)
+	if err != nil {
+		return fmt.Errorf("failed to parse karpenter version %q: %w", cfg.Karpenter.Version, err)
+	}
+
+	if minor := v.Segments()[1]; minor > supportedKarpenterVersionMinor {
+		return fmt.Errorf("failed to validate karpenter config: maximum supported version is %s", supportedKarpenterVersion)
+	}
+
 	if IsDisabled(cfg.IAM.WithOIDC) {
 		return errors.New("iam.withOIDC must be enabled with Karpenter")
 	}
@@ -190,6 +208,15 @@ func (c *ClusterConfig) ValidateVPCConfig() error {
 	if c.VPC == nil {
 		return nil
 	}
+
+	if err := c.ValidatePrivateCluster(); err != nil {
+		return err
+	}
+
+	if err := c.ValidateClusterEndpointConfig(); err != nil {
+		return err
+	}
+
 	if len(c.VPC.ExtraCIDRs) > 0 {
 		cidrs, err := validateCIDRs(c.VPC.ExtraCIDRs)
 		if err != nil {
@@ -205,7 +232,7 @@ func (c *ClusterConfig) ValidateVPCConfig() error {
 		c.VPC.PublicAccessCIDRs = cidrs
 	}
 	if len(c.VPC.ExtraIPv6CIDRs) > 0 {
-		if c.KubernetesNetworkConfig == nil || !c.KubernetesNetworkConfig.IPv6Enabled() {
+		if !c.IPv6Enabled() {
 			return fmt.Errorf("cannot specify vpc.extraIPv6CIDRs with an IPv4 cluster")
 		}
 		cidrs, err := validateCIDRs(c.VPC.ExtraIPv6CIDRs)
@@ -215,13 +242,11 @@ func (c *ClusterConfig) ValidateVPCConfig() error {
 		c.VPC.ExtraIPv6CIDRs = cidrs
 	}
 
-	if c.VPC.IPv6Cidr != "" || c.VPC.IPv6Pool != "" {
-		if c.KubernetesNetworkConfig == nil || !c.KubernetesNetworkConfig.IPv6Enabled() {
-			return fmt.Errorf("Ipv6Cidr and Ipv6CidrPool are only supported when IPFamily is set to IPv6")
-		}
+	if (c.VPC.IPv6Cidr != "" || c.VPC.IPv6Pool != "") && !c.IPv6Enabled() {
+		return fmt.Errorf("Ipv6Cidr and Ipv6CidrPool are only supported when IPFamily is set to IPv6")
 	}
 
-	if c.KubernetesNetworkConfig != nil && c.KubernetesNetworkConfig.IPv6Enabled() {
+	if c.IPv6Enabled() {
 		if IsEnabled(c.VPC.AutoAllocateIPv6) {
 			return fmt.Errorf("auto allocate ipv6 is not supported with IPv6")
 		}
@@ -237,6 +262,7 @@ func (c *ClusterConfig) ValidateVPCConfig() error {
 	if c.VPC.SharedNodeSecurityGroup == "" && IsDisabled(c.VPC.ManageSharedNodeSecurityGroupRules) {
 		return errors.New("vpc.manageSharedNodeSecurityGroupRules must be enabled when using ekstcl-managed security groups")
 	}
+
 	return nil
 }
 
@@ -244,7 +270,6 @@ func (c *ClusterConfig) unsupportedVPCCNIAddonVersion() (bool, error) {
 	for _, addon := range c.Addons {
 		if addon.Name == VPCCNIAddon {
 			if addon.Version == "" {
-				addon.Version = minimumVPCCNIVersionForIPv6
 				return false, nil
 			}
 			if addon.Version == "latest" {
@@ -311,12 +336,15 @@ func (c *ClusterConfig) addonContainsManagedAddons(addons []string) []string {
 
 // ValidateClusterEndpointConfig checks the endpoint configuration for potential issues
 func (c *ClusterConfig) ValidateClusterEndpointConfig() error {
-	if !c.HasClusterEndpointAccess() {
-		return ErrClusterEndpointNoAccess
-	}
-	endpts := c.VPC.ClusterEndpoints
-	if noAccess(endpts) {
-		return ErrClusterEndpointNoAccess
+	if c.VPC.ClusterEndpoints != nil {
+		if !c.HasClusterEndpointAccess() {
+			return ErrClusterEndpointNoAccess
+		}
+		endpts := c.VPC.ClusterEndpoints
+
+		if noAccess(endpts) {
+			return ErrClusterEndpointNoAccess
+		}
 	}
 	return nil
 }
@@ -353,7 +381,7 @@ func (c *ClusterConfig) validateKubernetesNetworkConfig() error {
 		return nil
 	}
 	if c.KubernetesNetworkConfig.ServiceIPv4CIDR != "" {
-		if c.KubernetesNetworkConfig.IPv6Enabled() {
+		if c.IPv6Enabled() {
 			return fmt.Errorf("service ipv4 cidr is not supported with IPv6")
 		}
 		serviceIP := c.KubernetesNetworkConfig.ServiceIPv4CIDR
@@ -472,8 +500,15 @@ func validateNodeGroupBase(np NodePool, path string) error {
 		}
 	}
 
-	if instanceutils.IsGPUInstanceType(SelectInstanceType(np)) && (ng.AMIFamily != NodeImageFamilyAmazonLinux2 && ng.AMIFamily != "") {
-		return errors.Errorf("GPU instance types are not supported for %s", ng.AMIFamily)
+	// Only AmazonLinux2 and Bottlerocket support NVIDIA GPUs
+	if instanceutils.IsNvidiaInstanceType(SelectInstanceType(np)) &&
+		(ng.AMIFamily != NodeImageFamilyAmazonLinux2 && ng.AMIFamily != NodeImageFamilyBottlerocket && ng.AMIFamily != "") {
+		return errors.Errorf("NVIDIA GPU instance types are not supported for %s", ng.AMIFamily)
+	}
+
+	// Bottlerocket doesn't support Inferentia hosts
+	if instanceutils.IsInferentiaInstanceType(SelectInstanceType(np)) && ng.AMIFamily == NodeImageFamilyBottlerocket {
+		return errors.Errorf("Inferentia instance types are not supported for %s", ng.AMIFamily)
 	}
 
 	return nil
@@ -565,6 +600,7 @@ func validateNodeGroupName(name string) error {
 
 // ValidateNodeGroup checks compatible fields of a given nodegroup
 func ValidateNodeGroup(i int, ng *NodeGroup) error {
+	normalizeAMIFamily(ng.BaseNodeGroup())
 	path := fmt.Sprintf("nodeGroups[%d]", i)
 	if err := validateNodeGroupBase(ng, path); err != nil {
 		return err
@@ -589,6 +625,13 @@ func ValidateNodeGroup(i int, ng *NodeGroup) error {
 
 			}
 		}
+		if err := validateDeprecatedIAMFields(ng.IAM); err != nil {
+			return err
+		}
+	}
+
+	if ng.AMI != "" && ng.OverrideBootstrapCommand == nil {
+		return errors.Errorf("%s.overrideBootstrapCommand is required when using a custom AMI (%s.ami)", path, path)
 	}
 
 	if err := validateTaints(ng.Taints); err != nil {
@@ -618,17 +661,19 @@ func ValidateNodeGroup(i int, ng *NodeGroup) error {
 				field: field,
 			}
 		}
+
 		if ng.KubeletExtraConfig != nil {
 			return fieldNotSupported("kubeletExtraConfig")
 		}
-		if ng.AMIFamily == NodeImageFamilyBottlerocket && ng.PreBootstrapCommands != nil {
-			return fieldNotSupported("preBootstrapCommands")
 
+		if ng.AMIFamily == NodeImageFamilyBottlerocket {
+			if ng.PreBootstrapCommands != nil {
+				return fieldNotSupported("preBootstrapCommands")
+			}
+			if ng.OverrideBootstrapCommand != nil {
+				return fieldNotSupported("overrideBootstrapCommand")
+			}
 		}
-		if ng.OverrideBootstrapCommand != nil {
-			return fieldNotSupported("overrideBootstrapCommand")
-		}
-
 	} else if err := validateNodeGroupKubeletExtraConfig(ng.KubeletExtraConfig); err != nil {
 		return err
 	}
@@ -638,6 +683,10 @@ func ValidateNodeGroup(i int, ng *NodeGroup) error {
 		if err != nil {
 			return err
 		}
+	}
+
+	if instanceutils.IsARMGPUInstanceType(SelectInstanceType(ng)) {
+		return errors.Errorf("ARM GPU instance types are not supported for unmanaged nodegroups with AMIFamily %s", ng.AMIFamily)
 	}
 
 	if err := validateInstancesDistribution(ng); err != nil {
@@ -653,12 +702,19 @@ func ValidateNodeGroup(i int, ng *NodeGroup) error {
 	}
 
 	if ng.ContainerRuntime != nil {
-		if *ng.ContainerRuntime == ContainerRuntimeContainerD && ng.AMIFamily != NodeImageFamilyAmazonLinux2 {
-			// check if it's dockerd or containerd
-			return fmt.Errorf("%s as runtime is only support for AL2 ami family", ContainerRuntimeContainerD)
+		if *ng.ContainerRuntime == ContainerRuntimeContainerD {
+			if ng.AMIFamily != NodeImageFamilyAmazonLinux2 && !IsWindowsImage(ng.AMIFamily) {
+				return fmt.Errorf("%s as runtime is only supported for AL2 or Windows ami family", ContainerRuntimeContainerD)
+			}
 		}
-		if *ng.ContainerRuntime != ContainerRuntimeDockerD && *ng.ContainerRuntime != ContainerRuntimeContainerD {
-			return fmt.Errorf("only %s and %s are supported for container runtime", ContainerRuntimeContainerD, ContainerRuntimeDockerD)
+		if *ng.ContainerRuntime != ContainerRuntimeDockerD && *ng.ContainerRuntime != ContainerRuntimeContainerD && *ng.ContainerRuntime != ContainerRuntimeDockerForWindows {
+			return fmt.Errorf("only %s, %s and %s are supported for container runtime", ContainerRuntimeContainerD, ContainerRuntimeDockerD, ContainerRuntimeDockerForWindows)
+		}
+	}
+
+	if ng.MaxInstanceLifetime != nil {
+		if *ng.MaxInstanceLifetime < OneDay {
+			return fmt.Errorf("maximum instance lifetime must have a minimum value of 86,400 seconds (one day), but was: %d", *ng.MaxInstanceLifetime)
 		}
 	}
 
@@ -746,6 +802,9 @@ func validateNodeGroupIAMWithAddonPolicies(
 		return fmtFieldConflictErr(prefix + "efs")
 	}
 	if IsEnabled(policies.AWSLoadBalancerController) {
+		return fmtFieldConflictErr(prefix + "awsLoadBalancerController")
+	}
+	if IsEnabled(policies.DeprecatedALBIngress) {
 		return fmtFieldConflictErr(prefix + "albIngress")
 	}
 	if IsEnabled(policies.XRay) {
@@ -754,6 +813,18 @@ func validateNodeGroupIAMWithAddonPolicies(
 	if IsEnabled(policies.CloudWatch) {
 		return fmtFieldConflictErr(prefix + "cloudWatch")
 	}
+	return nil
+}
+
+func validateDeprecatedIAMFields(iam *NodeGroupIAM) error {
+	if IsEnabled(iam.WithAddonPolicies.DeprecatedALBIngress) {
+		if IsEnabled(iam.WithAddonPolicies.AWSLoadBalancerController) {
+			return fmt.Errorf(`"awsLoadBalancerController" and "albIngress" cannot both be configured, ` +
+				`please use "awsLoadBalancerController" as "albIngress" is deprecated`)
+		}
+		logger.Warning("nodegroup.iam.withAddonPolicies.albIngress field is deprecated, please use awsLoadBalancerController instead")
+	}
+
 	return nil
 }
 
@@ -783,10 +854,10 @@ func validateNodeGroupIAM(iam *NodeGroupIAM, value, fieldName, path string) erro
 }
 
 // ValidateManagedNodeGroup validates a ManagedNodeGroup and sets some defaults
-func ValidateManagedNodeGroup(ng *ManagedNodeGroup, index int) error {
+func ValidateManagedNodeGroup(index int, ng *ManagedNodeGroup) error {
+	normalizeAMIFamily(ng.BaseNodeGroup())
 	switch ng.AMIFamily {
 	case NodeImageFamilyAmazonLinux2, NodeImageFamilyBottlerocket, NodeImageFamilyUbuntu1804, NodeImageFamilyUbuntu2004:
-
 	default:
 		return errors.Errorf("%q is not supported for managed nodegroups", ng.AMIFamily)
 	}
@@ -795,6 +866,11 @@ func ValidateManagedNodeGroup(ng *ManagedNodeGroup, index int) error {
 
 	if err := validateNodeGroupBase(ng, path); err != nil {
 		return err
+	}
+
+	if instanceutils.IsNvidiaInstanceType(SelectInstanceType(ng)) && ng.AMIFamily == NodeImageFamilyBottlerocket {
+		logger.Info("Bottlerocket GPU support is for unmanaged nodegroups only. If you're using CLI flags pass --managed=false")
+		return errors.Errorf("NVIDIA GPU instance types are not supported for managed nodegroups with AMIFamily %s", ng.AMIFamily)
 	}
 
 	if ng.IAM != nil {
@@ -943,6 +1019,15 @@ func ValidateManagedNodeGroup(ng *ManagedNodeGroup, index int) error {
 	}
 
 	return nil
+}
+
+func normalizeAMIFamily(ng *NodeGroupBase) {
+	for _, family := range supportedAMIFamilies() {
+		if strings.EqualFold(ng.AMIFamily, family) {
+			ng.AMIFamily = family
+			return
+		}
+	}
 }
 
 func validateInstancesDistribution(ng *NodeGroup) error {
@@ -1221,5 +1306,36 @@ func checkBottlerocketSettings(doc *InlineDocument, path string) error {
 		}
 	}
 
+	return nil
+}
+
+func validateAvailabilityZones(azList []string) error {
+	count := len(azList)
+	switch {
+	case count == 0:
+		return nil
+	case count < MinRequiredAvailabilityZones:
+		return ErrTooFewAvailabilityZones(azList)
+	default:
+		return nil
+	}
+}
+
+func ErrTooFewAvailabilityZones(azs []string) error {
+	return fmt.Errorf("only %d zone(s) specified %v, %d are required (can be non-unique)", len(azs), azs, MinRequiredAvailabilityZones)
+}
+
+func ValidateSecretsEncryption(clusterConfig *ClusterConfig) error {
+	if clusterConfig.SecretsEncryption == nil {
+		return nil
+	}
+
+	if clusterConfig.SecretsEncryption.KeyARN == "" {
+		return errors.New("field secretsEncryption.keyARN is required for enabling secrets encryption")
+	}
+
+	if _, err := arn.Parse(clusterConfig.SecretsEncryption.KeyARN); err != nil {
+		return errors.Wrapf(err, "invalid ARN in secretsEncryption.keyARN: %q", clusterConfig.SecretsEncryption.KeyARN)
+	}
 	return nil
 }

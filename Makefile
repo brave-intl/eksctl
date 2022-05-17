@@ -81,18 +81,12 @@ endif
 
 .PHONY: lint
 lint: ## Run linter over the codebase
-	golangci-lint run
+	golangci-lint run --timeout=30m
 	@for config_file in $(shell ls .goreleaser*); do goreleaser check -f $${config_file} || exit 1; done
 
 .PHONY: test
 test: ## Lint, generate and run unit tests. Also ensure that integration tests compile
 	$(MAKE) lint
-	$(MAKE) unit-test
-	$(MAKE) build-integration-test
-
-.PHONY: circleci-test
-circleci-test:
-	$(MAKE) check-all-generated-files-up-to-date
 	$(MAKE) unit-test
 	$(MAKE) build-integration-test
 
@@ -115,6 +109,9 @@ build-integration-test: $(all_generated_code) ## Ensure integration tests compil
 .PHONY: integration-test
 integration-test: build build-integration-test ## Run the integration tests (with cluster creation and cleanup)
 	JUNIT_REPORT_DIR=$(git_toplevel)/test-results ./eksctl-integration-test $(INTEGRATION_TEST_ARGS)
+
+list-integration-suites:
+	@ find integration/tests/ -maxdepth 1 -mindepth 1 -type d -printf '%f\n' | head -c -1 | jq -R -s -c 'split("\n")'
 
 TEST_CLUSTER ?= integration-test-dev
 .PHONY: integration-test-dev
@@ -144,7 +141,9 @@ generate-always: pkg/addons/default/assets/aws-node.yaml ## Generate code (requi
 	go generate ./pkg/nodebootstrap
 	go generate ./pkg/addons
 	go generate ./pkg/authconfigmap
+	go generate ./pkg/awsapi/...
 	go generate ./pkg/eks
+	go generate ./pkg/eks/mocksv2
 	go generate ./pkg/drain
 	go generate ./pkg/actions/...
 	go generate ./pkg/executor
@@ -175,7 +174,7 @@ deep_copy_helper_input = $(shell $(call godeps_cmd,./pkg/apis/...) | sed 's|$(ge
 $(generated_code_deep_copy_helper): $(deep_copy_helper_input) ## Generate Kubernetes API helpers
 	build/scripts/update-codegen.sh
 
-$(generated_code_aws_sdk_mocks): $(call godeps,pkg/eks/mocks/mocks.go) ## Generate aws sdk mocks
+$(generated_code_aws_sdk_mocks): $(call godeps,pkg/eks/mocks/mocks.go) ## Generate AWS SDK mocks
 	AWS_SDK_GO_DIR=$(AWS_SDK_GO_DIR) go generate ./pkg/eks/mocks
 
 .PHONY: generate-kube-reserved

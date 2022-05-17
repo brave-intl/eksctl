@@ -111,6 +111,7 @@ func SetNodeGroupDefaults(ng *NodeGroup, meta *ClusterMeta) {
 	}
 
 	setVolumeDefaults(ng.NodeGroupBase, nil)
+	setDefaultsForAdditionalVolumes(ng.NodeGroupBase)
 
 	if ng.SecurityGroups.WithLocal == nil {
 		ng.SecurityGroups.WithLocal = Enabled()
@@ -139,6 +140,7 @@ func SetManagedNodeGroupDefaults(ng *ManagedNodeGroup, meta *ClusterMeta) {
 	ng.Tags[NodeGroupTypeTag] = string(NodeGroupTypeManaged)
 
 	setVolumeDefaults(ng.NodeGroupBase, ng.LaunchTemplate)
+	setDefaultsForAdditionalVolumes(ng.NodeGroupBase)
 }
 
 func setNodeGroupBaseDefaults(ng *NodeGroupBase, meta *ClusterMeta) {
@@ -204,9 +206,34 @@ func setVolumeDefaults(ng *NodeGroupBase, template *LaunchTemplate) {
 	}
 }
 
+func setDefaultsForAdditionalVolumes(ng *NodeGroupBase) {
+	for i, av := range ng.AdditionalVolumes {
+		if av.VolumeType == nil {
+			ng.AdditionalVolumes[i].VolumeType = &DefaultNodeVolumeType
+		}
+		if av.VolumeSize == nil {
+			ng.AdditionalVolumes[i].VolumeSize = &DefaultNodeVolumeSize
+		}
+		if *av.VolumeType == NodeVolumeTypeGP3 {
+			if av.VolumeIOPS == nil {
+				ng.AdditionalVolumes[i].VolumeIOPS = aws.Int(DefaultNodeVolumeGP3IOPS)
+			}
+			if av.VolumeThroughput == nil {
+				ng.AdditionalVolumes[i].VolumeThroughput = aws.Int(DefaultNodeVolumeThroughput)
+			}
+		}
+		if *av.VolumeType == NodeVolumeTypeIO1 && av.VolumeIOPS == nil {
+			ng.AdditionalVolumes[i].VolumeIOPS = aws.Int(DefaultNodeVolumeIO1IOPS)
+		}
+	}
+}
+
 func setContainerRuntimeDefault(ng *NodeGroup) {
 	if ng.ContainerRuntime == nil {
 		ng.ContainerRuntime = &DefaultContainerRuntime
+		if IsWindowsImage(ng.AMIFamily) {
+			ng.ContainerRuntime = &DefaultContainerRuntimeForWindows
+		}
 	}
 }
 
@@ -225,6 +252,9 @@ func setIAMDefaults(iamConfig *NodeGroupIAM) {
 	}
 	if iamConfig.WithAddonPolicies.AWSLoadBalancerController == nil {
 		iamConfig.WithAddonPolicies.AWSLoadBalancerController = Disabled()
+	}
+	if iamConfig.WithAddonPolicies.DeprecatedALBIngress == nil {
+		iamConfig.WithAddonPolicies.DeprecatedALBIngress = Disabled()
 	}
 	if iamConfig.WithAddonPolicies.XRay == nil {
 		iamConfig.WithAddonPolicies.XRay = Disabled()

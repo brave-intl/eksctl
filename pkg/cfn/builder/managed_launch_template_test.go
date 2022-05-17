@@ -1,27 +1,30 @@
 package builder
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 
 	. "github.com/benjamintf1/unmarshalledmatchers"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
-	"github.com/weaveworks/eksctl/pkg/nodebootstrap/fakes"
-
 	"github.com/stretchr/testify/mock"
-	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
-	"github.com/weaveworks/eksctl/pkg/testutils/mockprovider"
-	vpcfakes "github.com/weaveworks/eksctl/pkg/vpc/fakes"
+
 	"github.com/weaveworks/goformation/v4"
 	gfnt "github.com/weaveworks/goformation/v4/cloudformation/types"
+
+	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
+	"github.com/weaveworks/eksctl/pkg/nodebootstrap/fakes"
+	"github.com/weaveworks/eksctl/pkg/testutils/mockprovider"
+	vpcfakes "github.com/weaveworks/eksctl/pkg/vpc/fakes"
 )
 
 type mngCase struct {
@@ -38,7 +41,7 @@ var _ = Describe("ManagedNodeGroup builder", func() {
 		clusterConfig := api.NewClusterConfig()
 		clusterConfig.Metadata.Name = "lt"
 		api.SetManagedNodeGroupDefaults(m.ng, clusterConfig.Metadata)
-		Expect(api.ValidateManagedNodeGroup(m.ng, 0)).To(Succeed())
+		Expect(api.ValidateManagedNodeGroup(0, m.ng)).To(Succeed())
 
 		provider := mockprovider.NewMockProvider()
 		if m.mockFetcherFn != nil {
@@ -60,7 +63,7 @@ var _ = Describe("ManagedNodeGroup builder", func() {
 		}
 
 		stack := NewManagedNodeGroup(provider.MockEC2(), clusterConfig, m.ng, NewLaunchTemplateFetcher(provider.MockEC2()), bootstrapper, false, fakeVPCImporter)
-		err := stack.AddAllResources()
+		err := stack.AddAllResources(context.Background())
 		if m.errMsg != "" {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring(m.errMsg))
@@ -122,13 +125,47 @@ API_SERVER_URL=https://test.com
 				},
 			},
 			mockFetcherFn: mockLaunchTemplate(func(input *ec2.DescribeLaunchTemplateVersionsInput) bool {
-				return *input.LaunchTemplateId == "lt-1234" && *input.Versions[0] == "$Default"
-			}, &ec2.ResponseLaunchTemplateData{
-				InstanceType: aws.String("t2.medium"),
+				return *input.LaunchTemplateId == "lt-1234" && input.Versions[0] == "$Default"
+			}, &ec2types.ResponseLaunchTemplateData{
+				InstanceType: ec2types.InstanceTypeT2Medium,
 				KeyName:      aws.String("key-name"),
 			}),
 
 			resourcesFilename: "launch_template.json",
+		}),
+
+		Entry("Launch Template With Additional Volumes", &mngCase{
+			ng: &api.ManagedNodeGroup{
+				NodeGroupBase: &api.NodeGroupBase{
+					Name: "extra-volumes",
+					AdditionalVolumes: []*api.VolumeMapping{
+						{
+							VolumeSize:      aws.Int(20),
+							VolumeType:      aws.String(api.NodeVolumeTypeGP3),
+							VolumeName:      aws.String("/foo/bar-add-1"),
+							VolumeEncrypted: aws.Bool(true),
+							SnapshotID:      aws.String("snapshot-id"),
+						},
+					},
+				},
+			},
+			resourcesFilename: "launch_template_additional_volumes.json",
+		}),
+
+		Entry("Launch Template with volumes missing volume size", &mngCase{
+			ng: &api.ManagedNodeGroup{
+				NodeGroupBase: &api.NodeGroupBase{
+					Name: "extra-volumes",
+					AdditionalVolumes: []*api.VolumeMapping{
+						{
+							VolumeType:      aws.String(api.NodeVolumeTypeGP3),
+							VolumeName:      aws.String("/foo/bar-add-1"),
+							VolumeEncrypted: aws.Bool(true),
+						},
+					},
+				},
+			},
+			resourcesFilename: "launch_template_additional_volumes_missing_size.json",
 		}),
 
 		Entry("Launch Template with custom AMI", &mngCase{
@@ -142,10 +179,10 @@ API_SERVER_URL=https://test.com
 				},
 			},
 			mockFetcherFn: mockLaunchTemplate(func(input *ec2.DescribeLaunchTemplateVersionsInput) bool {
-				return *input.LaunchTemplateId == "lt-1234" && *input.Versions[0] == "2"
-			}, &ec2.ResponseLaunchTemplateData{
+				return *input.LaunchTemplateId == "lt-1234" && input.Versions[0] == "2"
+			}, &ec2types.ResponseLaunchTemplateData{
 				ImageId:      aws.String("ami-1234"),
-				InstanceType: aws.String("t2.medium"),
+				InstanceType: ec2types.InstanceTypeT2Medium,
 				KeyName:      aws.String("key-name"),
 				UserData:     aws.String("bootstrap.sh"),
 			}),
@@ -219,8 +256,8 @@ API_SERVER_URL=https://test.com
 				},
 			},
 			mockFetcherFn: mockLaunchTemplate(func(input *ec2.DescribeLaunchTemplateVersionsInput) bool {
-				return *input.LaunchTemplateId == "lt-1234" && *input.Versions[0] == "2"
-			}, &ec2.ResponseLaunchTemplateData{
+				return *input.LaunchTemplateId == "lt-1234" && input.Versions[0] == "2"
+			}, &ec2types.ResponseLaunchTemplateData{
 				ImageId:  aws.String("ami-1234"),
 				KeyName:  aws.String("key-name"),
 				UserData: aws.String("bootstrap.sh"),
@@ -240,10 +277,10 @@ API_SERVER_URL=https://test.com
 				},
 			},
 			mockFetcherFn: mockLaunchTemplate(func(input *ec2.DescribeLaunchTemplateVersionsInput) bool {
-				return *input.LaunchTemplateId == "lt-1234" && *input.Versions[0] == "2"
-			}, &ec2.ResponseLaunchTemplateData{
+				return *input.LaunchTemplateId == "lt-1234" && input.Versions[0] == "2"
+			}, &ec2types.ResponseLaunchTemplateData{
 				ImageId:      aws.String("ami-1234"),
-				InstanceType: aws.String("m5.large"),
+				InstanceType: ec2types.InstanceTypeM5Large,
 				KeyName:      aws.String("key-name"),
 				UserData:     aws.String("bootstrap.sh"),
 			}),
@@ -262,8 +299,8 @@ API_SERVER_URL=https://test.com
 				},
 			},
 			mockFetcherFn: mockLaunchTemplate(func(input *ec2.DescribeLaunchTemplateVersionsInput) bool {
-				return *input.LaunchTemplateId == "lt-1234" && *input.Versions[0] == "3"
-			}, &ec2.ResponseLaunchTemplateData{
+				return *input.LaunchTemplateId == "lt-1234" && input.Versions[0] == "3"
+			}, &ec2types.ResponseLaunchTemplateData{
 				ImageId:  aws.String("ami-1234"),
 				KeyName:  aws.String("key-name"),
 				UserData: aws.String("bootstrap.sh"),
@@ -296,11 +333,11 @@ API_SERVER_URL=https://test.com
 	)
 })
 
-func mockLaunchTemplate(matcher func(*ec2.DescribeLaunchTemplateVersionsInput) bool, lt *ec2.ResponseLaunchTemplateData) func(provider *mockprovider.MockProvider) {
+func mockLaunchTemplate(matcher func(*ec2.DescribeLaunchTemplateVersionsInput) bool, lt *ec2types.ResponseLaunchTemplateData) func(provider *mockprovider.MockProvider) {
 	return func(provider *mockprovider.MockProvider) {
-		provider.MockEC2().On("DescribeLaunchTemplateVersions", mock.MatchedBy(matcher)).
+		provider.MockEC2().On("DescribeLaunchTemplateVersions", mock.Anything, mock.MatchedBy(matcher)).
 			Return(&ec2.DescribeLaunchTemplateVersionsOutput{
-				LaunchTemplateVersions: []*ec2.LaunchTemplateVersion{
+				LaunchTemplateVersions: []ec2types.LaunchTemplateVersion{
 					{
 						LaunchTemplateData: lt,
 					},

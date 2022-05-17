@@ -2,50 +2,44 @@ package v1alpha5
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/service/cloudwatchlogs/cloudwatchlogsiface"
-
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/autoscaling/autoscalingiface"
-	"github.com/aws/aws-sdk-go/service/cloudformation/cloudformationiface"
-	"github.com/aws/aws-sdk-go/service/cloudtrail/cloudtrailiface"
-	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
-	"github.com/aws/aws-sdk-go/service/elb/elbiface"
-	"github.com/aws/aws-sdk-go/service/elbv2/elbv2iface"
-	"github.com/aws/aws-sdk-go/service/iam/iamiface"
-	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
-	"github.com/aws/aws-sdk-go/service/sts/stsiface"
+
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/weaveworks/eksctl/pkg/awsapi"
 	"github.com/weaveworks/eksctl/pkg/utils/taints"
 )
 
 // Values for `KubernetesVersion`
 // All valid values should go in this block
 const (
-	Version1_18 = "1.18"
-
 	Version1_19 = "1.19"
 
 	Version1_20 = "1.20"
 
 	Version1_21 = "1.21"
 
-	// DefaultVersion (default)
-	DefaultVersion = Version1_21
+	Version1_22 = "1.22"
 
-	LatestVersion = Version1_21
+	// DefaultVersion (default)
+	DefaultVersion = Version1_22
+
+	LatestVersion = Version1_22
 )
 
 // No longer supported versions
@@ -72,12 +66,14 @@ const (
 
 	// Version1_17 represents Kubernetes version 1.17.x
 	Version1_17 = "1.17"
+
+	Version1_18 = "1.18"
 )
 
 // Not yet supported versions
 const (
-	// Version1_22 represents Kubernetes version 1.22.x
-	Version1_22 = "1.22"
+	// Version1_23 represents Kubernetes version 1.23.x
+	Version1_23 = "1.23"
 )
 
 const (
@@ -135,6 +131,9 @@ const (
 	// RegionAPSouthEast2 represents the Asia-Pacific South East Region Sydney
 	RegionAPSouthEast2 = "ap-southeast-2"
 
+	// RegionAPSouthEast3 represents the Asia-Pacific South East Region Jakarta
+	RegionAPSouthEast3 = "ap-southeast-3"
+
 	// RegionAPSouth1 represents the Asia-Pacific South Region Mumbai
 	RegionAPSouth1 = "ap-south-1"
 
@@ -191,8 +190,9 @@ const (
 
 // Container runtime values.
 const (
-	ContainerRuntimeContainerD = "containerd"
-	ContainerRuntimeDockerD    = "dockerd"
+	ContainerRuntimeContainerD       = "containerd"
+	ContainerRuntimeDockerD          = "dockerd"
+	ContainerRuntimeDockerForWindows = "docker"
 )
 
 const (
@@ -291,6 +291,9 @@ const (
 
 	// eksResourceAccountUSGovEast1 defines the AWS EKS account ID that provides node resources in us-gov-east-1
 	eksResourceAccountUSGovEast1 = "151742754352"
+
+	// eksResourceAccountAPSouthEast3 defines the AWS EKS account ID that provides node resources in ap-southeast-3
+	eksResourceAccountAPSouthEast3 = "296578399912"
 )
 
 // Values for `VolumeType`
@@ -341,6 +344,12 @@ const (
 	minimumVPCCNIVersionForIPv6 = "1.10.0"
 )
 
+// supported version of Karpenter
+const (
+	supportedKarpenterVersion      = "0.6"
+	supportedKarpenterVersionMinor = 6
+)
+
 var (
 	// DefaultIPFamily defines the default IP family to use when creating a new VPC and cluster.
 	DefaultIPFamily = IPV4Family
@@ -362,7 +371,8 @@ var (
 
 var (
 	// DefaultContainerRuntime defines the default container runtime.
-	DefaultContainerRuntime = ContainerRuntimeDockerD
+	DefaultContainerRuntime           = ContainerRuntimeDockerD
+	DefaultContainerRuntimeForWindows = ContainerRuntimeDockerForWindows
 )
 
 // Enabled return pointer to true value
@@ -410,6 +420,7 @@ func SupportedRegions() []string {
 		RegionAPNorthEast3,
 		RegionAPSouthEast1,
 		RegionAPSouthEast2,
+		RegionAPSouthEast3,
 		RegionAPSouth1,
 		RegionAPEast1,
 		RegionMESouth1,
@@ -447,6 +458,7 @@ func DeprecatedVersions() []string {
 		Version1_15,
 		Version1_16,
 		Version1_17,
+		Version1_18,
 	}
 }
 
@@ -463,10 +475,10 @@ func IsDeprecatedVersion(version string) bool {
 // SupportedVersions are the versions of Kubernetes that EKS supports
 func SupportedVersions() []string {
 	return []string{
-		Version1_18,
 		Version1_19,
 		Version1_20,
 		Version1_21,
+		Version1_22,
 	}
 }
 
@@ -544,6 +556,8 @@ func EKSResourceAccountID(region string) string {
 		return eksResourceAccountAFSouth1
 	case RegionEUSouth1:
 		return eksResourceAccountEUSouth1
+	case RegionAPSouthEast3:
+		return eksResourceAccountAPSouthEast3
 	default:
 		return eksResourceAccountStandard
 	}
@@ -642,24 +656,34 @@ func (c ClusterConfig) HasNodes() bool {
 
 // ClusterProvider is the interface to AWS APIs
 type ClusterProvider interface {
-	CloudFormation() cloudformationiface.CloudFormationAPI
+	CloudFormation() awsapi.CloudFormation
 	CloudFormationRoleARN() string
 	CloudFormationDisableRollback() bool
-	ASG() autoscalingiface.AutoScalingAPI
+	ASG() awsapi.ASG
 	EKS() eksiface.EKSAPI
-	EC2() ec2iface.EC2API
-	ELB() elbiface.ELBAPI
-	ELBV2() elbv2iface.ELBV2API
-	STS() stsiface.STSAPI
-	SSM() ssmiface.SSMAPI
-	IAM() iamiface.IAMAPI
-	CloudTrail() cloudtrailiface.CloudTrailAPI
-	CloudWatchLogs() cloudwatchlogsiface.CloudWatchLogsAPI
+	SSM() awsapi.SSM
+	CloudTrail() awsapi.CloudTrail
+	CloudWatchLogs() awsapi.CloudWatchLogs
+	IAM() awsapi.IAM
 	Region() string
 	Profile() string
 	WaitTimeout() time.Duration
 	ConfigProvider() client.ConfigProvider
 	Session() *session.Session
+
+	ELB() awsapi.ELB
+	ELBV2() awsapi.ELBV2
+	STS() awsapi.STS
+	STSPresigner() STSPresigner
+	EC2() awsapi.EC2
+}
+
+// STSPresigner defines the method to pre-sign GetCallerIdentity requests to add a proper header required by EKS for
+// authentication from the outside.
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -generate
+//counterfeiter:generate -o fakes/fake_sts_presigner.go . STSPresigner
+type STSPresigner interface {
+	PresignGetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.PresignOptions)) (*v4.PresignedHTTPRequest, error)
 }
 
 // ProviderConfig holds global parameters for all interactions with AWS APIs
@@ -744,6 +768,9 @@ type Karpenter struct {
 	// CreateServiceAccount create a service account or not.
 	// +optional
 	CreateServiceAccount *bool `json:"createServiceAccount,omitempty"`
+	// DefaultInstanceProfile override the default IAM instance profile
+	// +optional
+	DefaultInstanceProfile *string `json:"defaultInstanceProfile,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -777,7 +804,7 @@ func NewClusterConfig() *ClusterConfig {
 		KubernetesNetworkConfig: &KubernetesNetworkConfig{
 			IPFamily: DefaultIPFamily,
 		},
-		VPC: NewClusterVPC(),
+		VPC: NewClusterVPC(false),
 		CloudWatch: &ClusterCloudWatch{
 			ClusterLogging: &ClusterCloudWatchLogging{},
 		},
@@ -788,17 +815,21 @@ func NewClusterConfig() *ClusterConfig {
 }
 
 // NewClusterVPC creates new VPC config for a cluster
-func NewClusterVPC() *ClusterVPC {
+func NewClusterVPC(ipv6Enabled bool) *ClusterVPC {
 	cidr := DefaultCIDR()
+
+	var nat *ClusterNAT
+	if !ipv6Enabled {
+		nat = DefaultClusterNAT()
+	}
 
 	return &ClusterVPC{
 		Network: Network{
 			CIDR: &cidr,
 		},
 		ManageSharedNodeSecurityGroupRules: Enabled(),
-		NAT:                                DefaultClusterNAT(),
+		NAT:                                nat,
 		AutoAllocateIPv6:                   Disabled(),
-		ClusterEndpoints:                   &ClusterEndpoints{},
 	}
 }
 
@@ -817,6 +848,10 @@ func (c *ClusterConfig) AppendAvailabilityZone(newAZ string) {
 		}
 	}
 	c.AvailabilityZones = append(c.AvailabilityZones, newAZ)
+}
+
+func (c *ClusterConfig) IPv6Enabled() bool {
+	return c.KubernetesNetworkConfig != nil && c.KubernetesNetworkConfig.IPv6Enabled()
 }
 
 // SetClusterStatus populates ClusterStatus using *eks.Cluster.
@@ -855,6 +890,7 @@ func NewNodeGroup() *NodeGroup {
 					FSX:                       Disabled(),
 					EFS:                       Disabled(),
 					AWSLoadBalancerController: Disabled(),
+					DeprecatedALBIngress:      Disabled(),
 					XRay:                      Disabled(),
 					CloudWatch:                Disabled(),
 				},
@@ -904,6 +940,7 @@ func NewManagedNodeGroup() *ManagedNodeGroup {
 					FSX:                       Disabled(),
 					EFS:                       Disabled(),
 					AWSLoadBalancerController: Disabled(),
+					DeprecatedALBIngress:      Disabled(),
 					XRay:                      Disabled(),
 					CloudWatch:                Disabled(),
 				},
@@ -925,7 +962,7 @@ func (c *ClusterConfig) NewNodeGroup() *NodeGroup {
 }
 
 // NodeGroup holds configuration attributes that are
-// specific to a nodegroup
+// specific to an unmanaged nodegroup
 type NodeGroup struct {
 	*NodeGroupBase
 
@@ -972,6 +1009,15 @@ type NodeGroup struct {
 	// EnclaveEnabled determines if the EC2 instance will be Nitro enclave enabled
 	// +optional
 	EnclaveEnabled bool `json:"enclaveEnabled,omitempty"`
+
+	// DisableASGTagPropagation disables the tag propagation to ASG in case desired capacity is 0.
+	// Defaults to `false`
+	// +optional
+	DisableASGTagPropagation *bool `json:"disableASGTagPropagation,omitempty"`
+
+	// MaxInstanceLifetime defines the maximum amount of time in seconds an instance stays alive.
+	// +optional
+	MaxInstanceLifetime *int `json:"maxInstanceLifetime,omitempty"`
 }
 
 // GetContainerRuntime returns the container runtime.
@@ -1102,7 +1148,9 @@ type (
 		// +optional
 		EFS *bool `json:"efs"`
 		// +optional
-		AWSLoadBalancerController *bool `json:"albIngress"`
+		AWSLoadBalancerController *bool `json:"awsLoadBalancerController"`
+		// +optional
+		DeprecatedALBIngress *bool `json:"albIngress"`
 		// +optional
 		XRay *bool `json:"xRay"`
 		// +optional
@@ -1213,6 +1261,29 @@ type NodePool interface {
 	NGTaints() []NodeGroupTaint
 }
 
+// VolumeMapping Additional Volume Configurations
+type VolumeMapping struct {
+	// +optional
+	// VolumeSize gigabytes
+	// Defaults to `80`
+	VolumeSize *int `json:"volumeSize,omitempty"`
+	// Valid variants are `VolumeType` constants
+	// +optional
+	VolumeType *string `json:"volumeType,omitempty"`
+	// +optional
+	VolumeName *string `json:"volumeName,omitempty"`
+	// +optional
+	VolumeEncrypted *bool `json:"volumeEncrypted,omitempty"`
+	// +optional
+	VolumeKmsKeyID *string `json:"volumeKmsKeyID,omitempty"`
+	// +optional
+	VolumeIOPS *int `json:"volumeIOPS,omitempty"`
+	// +optional
+	VolumeThroughput *int `json:"volumeThroughput,omitempty"`
+	// +optional
+	SnapshotID *string `json:"snapshotID,omitempty"`
+}
+
 // NodeGroupBase represents the base nodegroup config for self-managed and managed nodegroups
 type NodeGroupBase struct {
 	// +required
@@ -1254,7 +1325,7 @@ type NodeGroupBase struct {
 	// +optional
 	PrivateNetworking bool `json:"privateNetworking"`
 	// Applied to the Autoscaling Group and to the EC2 instances (unmanaged),
-	// Applied to the EKS Nodegroup resource and to the EC2 instances (managed)
+	// Applied to the Autoscaling Group, the EKS Nodegroup resource and to the EC2 instances (managed)
 	// +optional
 	Tags map[string]string `json:"tags,omitempty"`
 	// +optional
@@ -1294,6 +1365,10 @@ type NodeGroupBase struct {
 	// +optional
 	VolumeThroughput *int `json:"volumeThroughput,omitempty"`
 
+	// Additional Volume Configurations
+	// +optional
+	AdditionalVolumes []*VolumeMapping `json:"additionalVolumes,omitempty"`
+
 	// PreBootstrapCommands are executed before bootstrapping instances to the
 	// cluster
 	// +optional
@@ -1302,6 +1377,10 @@ type NodeGroupBase struct {
 	// Override `eksctl`'s bootstrapping script
 	// +optional
 	OverrideBootstrapCommand *string `json:"overrideBootstrapCommand,omitempty"`
+
+	// Propagate all taints and labels to the ASG automatically.
+	// +optional
+	PropagateASGTags *bool `json:"propagateASGTags,omitempty"`
 
 	// DisableIMDSv1 requires requests to the metadata service to use IMDSv2 tokens
 	// Defaults to `false`
@@ -1333,11 +1412,6 @@ type NodeGroupBase struct {
 	// Bottlerocket specifies settings for Bottlerocket nodes
 	// +optional
 	Bottlerocket *NodeGroupBottlerocket `json:"bottlerocket,omitempty"`
-
-	// TODO remove this
-	// This is a hack, will be removed shortly. When this is true for Ubuntu and
-	// AL2 images a legacy bootstrapper will be used.
-	CustomAMI bool `json:"-"`
 
 	// Enable EC2 detailed monitoring
 	// +optional

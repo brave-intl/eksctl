@@ -1,6 +1,8 @@
 package set
 
 import (
+	"context"
+
 	"github.com/kris-nova/logger"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -54,8 +56,7 @@ func setLabels(cmd *cmdutils.Cmd, options labelOptions) error {
 		return err
 	}
 
-	cmdutils.LogRegionAndVersionInfo(cmd.ClusterConfig.Metadata)
-	service := managed.NewService(ctl.Provider.EKS(), ctl.Provider.SSM(), ctl.Provider.EC2(), manager.NewStackCollection(ctl.Provider, cfg), cfg.Metadata.Name)
+	service := managed.NewService(ctl.Provider.EKS(), ctl.Provider.EC2(), manager.NewStackCollection(ctl.Provider, cfg), cfg.Metadata.Name)
 
 	if options.nodeGroupName == "" && cmd.ClusterConfigFile != "" {
 		logger.Info("setting label(s) on %d nodegroup(s) in cluster %s", len(cfg.ManagedNodeGroups), cmd.ClusterConfig.Metadata)
@@ -64,9 +65,10 @@ func setLabels(cmd *cmdutils.Cmd, options labelOptions) error {
 	}
 
 	manager := label.New(cfg.Metadata.Name, service, ctl.Provider.EKS())
+	ctx := context.TODO()
 	// when there is no config file provided
 	if cmd.ClusterConfigFile == "" {
-		if err := manager.Set(options.nodeGroupName, options.labels); err != nil {
+		if err := manager.Set(ctx, options.nodeGroupName, options.labels); err != nil {
 			return err
 		}
 		logger.Info("done")
@@ -74,7 +76,7 @@ func setLabels(cmd *cmdutils.Cmd, options labelOptions) error {
 	}
 	// when there is a config file, we call GetLabels first.
 	for _, mng := range cfg.ManagedNodeGroups {
-		existingLabels, err := service.GetLabels(mng.Name)
+		existingLabels, err := service.GetLabels(ctx, mng.Name)
 		if err != nil {
 			return err
 		}
@@ -85,7 +87,7 @@ func setLabels(cmd *cmdutils.Cmd, options labelOptions) error {
 			logger.Info("no new labels to add for nodegroup %s", mng.Name)
 			continue
 		}
-		if err := manager.Set(mng.Name, mng.Labels); err != nil {
+		if err := manager.Set(ctx, mng.Name, mng.Labels); err != nil {
 			return err
 		}
 	}

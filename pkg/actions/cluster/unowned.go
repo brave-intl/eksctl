@@ -1,38 +1,33 @@
 package cluster
 
 import (
+	"context"
 	"fmt"
 	"time"
 
-	"github.com/weaveworks/eksctl/pkg/kubernetes"
-
-	"github.com/weaveworks/eksctl/pkg/cfn/manager"
-
 	"github.com/aws/aws-sdk-go/aws/awserr"
-
 	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/weaveworks/eksctl/pkg/utils/tasks"
-
+	awseks "github.com/aws/aws-sdk-go/service/eks"
+	"github.com/kris-nova/logger"
 	"github.com/pkg/errors"
 
-	"github.com/weaveworks/eksctl/pkg/utils/waiters"
-
-	iamoidc "github.com/weaveworks/eksctl/pkg/iam/oidc"
-
-	"github.com/kris-nova/logger"
-
-	awseks "github.com/aws/aws-sdk-go/service/eks"
-
+	"github.com/weaveworks/eksctl/pkg/actions/nodegroup"
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
+	"github.com/weaveworks/eksctl/pkg/cfn/manager"
 	"github.com/weaveworks/eksctl/pkg/ctl/cmdutils"
 	"github.com/weaveworks/eksctl/pkg/eks"
+	iamoidc "github.com/weaveworks/eksctl/pkg/iam/oidc"
+	"github.com/weaveworks/eksctl/pkg/kubernetes"
+	"github.com/weaveworks/eksctl/pkg/utils/tasks"
+	"github.com/weaveworks/eksctl/pkg/utils/waiters"
 )
 
 type UnownedCluster struct {
-	cfg          *api.ClusterConfig
-	ctl          *eks.ClusterProvider
-	stackManager manager.StackManager
-	newClientSet func() (kubernetes.Interface, error)
+	cfg                 *api.ClusterConfig
+	ctl                 *eks.ClusterProvider
+	stackManager        manager.StackManager
+	newClientSet        func() (kubernetes.Interface, error)
+	newNodeGroupManager func(cfg *api.ClusterConfig, ctl *eks.ClusterProvider, clientSet kubernetes.Interface) NodeGroupDrainer
 }
 
 func NewUnownedCluster(cfg *api.ClusterConfig, ctl *eks.ClusterProvider, stackManager manager.StackManager) *UnownedCluster {
@@ -43,10 +38,13 @@ func NewUnownedCluster(cfg *api.ClusterConfig, ctl *eks.ClusterProvider, stackMa
 		newClientSet: func() (kubernetes.Interface, error) {
 			return ctl.NewStdClientSet(cfg)
 		},
+		newNodeGroupManager: func(cfg *api.ClusterConfig, ctl *eks.ClusterProvider, clientSet kubernetes.Interface) NodeGroupDrainer {
+			return nodegroup.New(cfg, ctl, clientSet)
+		},
 	}
 }
 
-func (c *UnownedCluster) Upgrade(dryRun bool) error {
+func (c *UnownedCluster) Upgrade(_ context.Context, dryRun bool) error {
 	versionUpdateRequired, err := upgrade(c.cfg, c.ctl, dryRun)
 	if err != nil {
 		return err
@@ -57,7 +55,7 @@ func (c *UnownedCluster) Upgrade(dryRun bool) error {
 	return nil
 }
 
-func (c *UnownedCluster) Delete(waitInterval time.Duration, wait, force bool) error {
+func (c *UnownedCluster) Delete(ctx context.Context, waitInterval, podEvictionWaitPeriod time.Duration, wait, force, disableNodegroupEviction bool, parallel int) error {
 	clusterName := c.cfg.Metadata.Name
 
 	if err := c.checkClusterExists(clusterName); err != nil {
@@ -69,7 +67,7 @@ func (c *UnownedCluster) Delete(waitInterval time.Duration, wait, force bool) er
 		logger.Debug("failed to check if cluster is operable: %v", err)
 	}
 
-	allStacks, err := c.stackManager.ListNodeGroupStacks()
+	allStacks, err := c.stackManager.ListNodeGroupStacks(ctx)
 	if err != nil {
 		return err
 	}
@@ -81,12 +79,17 @@ func (c *UnownedCluster) Delete(waitInterval time.Duration, wait, force bool) er
 			return err
 		}
 
-		if err := drainAllNodegroups(c.cfg, c.ctl, c.stackManager, clientSet, allStacks); err != nil {
-			return err
+		nodeGroupManager := c.newNodeGroupManager(c.cfg, c.ctl, clientSet)
+		if err := drainAllNodeGroups(c.cfg, c.ctl, clientSet, allStacks, disableNodegroupEviction, parallel, nodeGroupManager, attemptVpcCniDeletion, podEvictionWaitPeriod); err != nil {
+			if !force {
+				return err
+			}
+
+			logger.Warning("an error occurred during nodegroups draining, force=true so proceeding with deletion: %q", err.Error())
 		}
 	}
 
-	if err := deleteSharedResources(c.cfg, c.ctl, c.stackManager, clusterOperable, clientSet); err != nil {
+	if err := deleteSharedResources(ctx, c.cfg, c.ctl, c.stackManager, clusterOperable, clientSet); err != nil {
 		if err != nil {
 			if force {
 				logger.Warning("error occurred during deletion: %v", err)
@@ -96,7 +99,7 @@ func (c *UnownedCluster) Delete(waitInterval time.Duration, wait, force bool) er
 		}
 	}
 
-	if err := c.deleteFargateRoleIfExists(); err != nil {
+	if err := c.deleteFargateRoleIfExists(ctx); err != nil {
 		return err
 	}
 
@@ -106,7 +109,7 @@ func (c *UnownedCluster) Delete(waitInterval time.Duration, wait, force bool) er
 		return err
 	}
 
-	if err := c.deleteIAMAndOIDC(wait, clusterOperable, clientSet); err != nil {
+	if err := c.deleteIAMAndOIDC(ctx, wait, clusterOperable, clientSet); err != nil {
 		if err != nil {
 			if force {
 				logger.Warning("error occurred during deletion: %v", err)
@@ -120,7 +123,7 @@ func (c *UnownedCluster) Delete(waitInterval time.Duration, wait, force bool) er
 		return err
 	}
 
-	if err := checkForUndeletedStacks(c.stackManager); err != nil {
+	if err := checkForUndeletedStacks(ctx, c.stackManager); err != nil {
 		return err
 	}
 
@@ -128,15 +131,15 @@ func (c *UnownedCluster) Delete(waitInterval time.Duration, wait, force bool) er
 	return nil
 }
 
-func (c *UnownedCluster) deleteFargateRoleIfExists() error {
-	stack, err := c.stackManager.GetFargateStack()
+func (c *UnownedCluster) deleteFargateRoleIfExists(ctx context.Context) error {
+	stack, err := c.stackManager.GetFargateStack(ctx)
 	if err != nil {
 		return err
 	}
 
 	if stack != nil {
 		logger.Info("deleting fargate role")
-		_, err = c.stackManager.DeleteStackBySpec(stack)
+		_, err = c.stackManager.DeleteStackBySpec(ctx, stack)
 		return err
 	}
 
@@ -157,7 +160,7 @@ func (c *UnownedCluster) checkClusterExists(clusterName string) error {
 	return nil
 }
 
-func (c *UnownedCluster) deleteIAMAndOIDC(wait bool, clusterOperable bool, clientSet kubernetes.Interface) error {
+func (c *UnownedCluster) deleteIAMAndOIDC(ctx context.Context, wait bool, clusterOperable bool, clientSet kubernetes.Interface) error {
 	var oidc *iamoidc.OpenIDConnectManager
 	oidcSupported := true
 
@@ -176,7 +179,7 @@ func (c *UnownedCluster) deleteIAMAndOIDC(wait bool, clusterOperable bool, clien
 
 	if clusterOperable && oidcSupported {
 		clientSetGetter := kubernetes.NewCachedClientSet(clientSet)
-		serviceAccountAndOIDCTasks, err := c.stackManager.NewTasksToDeleteOIDCProviderWithIAMServiceAccounts(oidc, clientSetGetter)
+		serviceAccountAndOIDCTasks, err := c.stackManager.NewTasksToDeleteOIDCProviderWithIAMServiceAccounts(ctx, oidc, clientSetGetter)
 		if err != nil {
 			return err
 		}
@@ -187,7 +190,7 @@ func (c *UnownedCluster) deleteIAMAndOIDC(wait bool, clusterOperable bool, clien
 		}
 	}
 
-	deleteAddonIAMtasks, err := c.stackManager.NewTaskToDeleteAddonIAM(wait)
+	deleteAddonIAMtasks, err := c.stackManager.NewTaskToDeleteAddonIAM(ctx, wait)
 	if err != nil {
 		return err
 	}
@@ -264,7 +267,7 @@ func (c *UnownedCluster) deleteAndWaitForNodegroupsDeletion(waitInterval time.Du
 	}
 
 	// we kill every nodegroup with a stack the standard way. wait is always true
-	tasks, err := c.stackManager.NewTasksToDeleteNodeGroups(func(_ string) bool { return true }, true, nil)
+	tasks, err := c.stackManager.NewTasksToDeleteNodeGroups(allStacks, func(_ string) bool { return true }, true, nil)
 	if err != nil {
 		return err
 	}

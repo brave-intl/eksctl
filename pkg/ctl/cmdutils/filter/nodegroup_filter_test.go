@@ -2,6 +2,7 @@ package filter
 
 import (
 	"bytes"
+	"context"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/eks"
@@ -79,7 +80,7 @@ var _ = Describe("nodegroup filter", func() {
 				"non-existing-in-cfg-1",
 				"non-existing-in-cfg-2",
 			)
-			err := filter.SetOnlyRemote(mockProvider.EKS(), mockLister, cfg)
+			err := filter.SetOnlyRemote(context.TODO(), mockProvider.EKS(), mockLister, cfg)
 			Expect(err).NotTo(HaveOccurred())
 
 			included, excluded := filter.matchAll(filter.collectNames(cfg.NodeGroups))
@@ -105,7 +106,7 @@ var _ = Describe("nodegroup filter", func() {
 				"test-ng2a",
 				"test-ng3a",
 			)
-			err = filter.SetOnlyLocal(mockProvider.EKS(), mockLister, cfg)
+			err = filter.SetOnlyLocal(context.TODO(), mockProvider.EKS(), mockLister, cfg)
 			Expect(err).NotTo(HaveOccurred())
 
 			included, excluded := filter.matchAll(filter.collectNames(cfg.NodeGroups))
@@ -124,7 +125,7 @@ var _ = Describe("nodegroup filter", func() {
 				"test-ng1b",
 				"test-ng2b",
 			)
-			err = filter.SetOnlyLocal(mockProvider.EKS(), mockLister, cfg)
+			err = filter.SetOnlyLocal(context.TODO(), mockProvider.EKS(), mockLister, cfg)
 			Expect(err).NotTo(HaveOccurred())
 
 			err = filter.AppendExcludeGlobs("test-ng1a", "test-ng2?")
@@ -339,7 +340,7 @@ const expected = `
 		"metadata": {
 		  "name": "test-3x3-ngs",
 		  "region": "eu-central-1",
-		  "version": "1.21"
+		  "version": "1.22"
 		},
 		"kubernetesNetworkConfig": {
         	"ipFamily": "IPv4"
@@ -353,8 +354,7 @@ const expected = `
 			"autoAllocateIPv6": false,
 			"nat": {
 				"gateway": "Single"
-			  },
-             "clusterEndpoints": {}
+			  }
 		},
 		"cloudWatch": {
 		  "clusterLogging": {}
@@ -392,6 +392,7 @@ const expected = `
 			    "withAddonPolicies": {
 				  "imageBuilder": false,
 				  "autoScaler": false,
+				  "awsLoadBalancerController": false,
 				  "externalDNS": false,
 				  "certManager": false,
 				  "appMesh": false,
@@ -436,6 +437,7 @@ const expected = `
 			    "withAddonPolicies": {
 				  "imageBuilder": false,
 				  "autoScaler": false,
+				  "awsLoadBalancerController": false,
 				  "externalDNS": false,
 				  "certManager": false,
 				  "appMesh": false,
@@ -480,6 +482,7 @@ const expected = `
 				"withAddonPolicies": {
 				  "imageBuilder": false,
 				  "autoScaler": false,
+				  "awsLoadBalancerController": false,
 				  "externalDNS": false,
 				  "certManager": false,
 				  "appMesh": false,
@@ -525,6 +528,7 @@ const expected = `
 			    "withAddonPolicies": {
 			  	  "imageBuilder": false,
 			  	  "autoScaler": false,
+				    "awsLoadBalancerController": false,
 			  	  "externalDNS": false,
 			  	  "certManager": false,
 			  	  "appMesh": false,
@@ -572,6 +576,7 @@ const expected = `
 			    "withAddonPolicies": {
 			  	  "imageBuilder": false,
 			  	  "autoScaler": false,
+				    "awsLoadBalancerController": false,
 			  	  "externalDNS": false,
 			  	  "certManager": false,
 			  	  "appMesh": false,
@@ -620,6 +625,7 @@ const expected = `
 			    "withAddonPolicies": {
 			  	  "imageBuilder": false,
 			  	  "autoScaler": false,
+				  "awsLoadBalancerController": false,
 			  	  "externalDNS": false,
 			  	  "certManager": false,
 			  	  "appMesh": false,
@@ -645,7 +651,7 @@ type mockStackLister struct {
 	nodesResult []manager.NodeGroupStack
 }
 
-func (s *mockStackLister) ListNodeGroupStacks() ([]manager.NodeGroupStack, error) {
+func (s *mockStackLister) ListNodeGroupStacks(_ context.Context) ([]manager.NodeGroupStack, error) {
 	return s.nodesResult, nil
 }
 

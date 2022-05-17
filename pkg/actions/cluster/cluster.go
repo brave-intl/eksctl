@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -9,19 +10,19 @@ import (
 
 	awseks "github.com/aws/aws-sdk-go/service/eks"
 	"github.com/kris-nova/logger"
+
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/eks"
 )
 
 type Cluster interface {
-	Upgrade(dryRun bool) error
-	Delete(waitInterval time.Duration, wait, force bool) error
+	Upgrade(ctx context.Context, dryRun bool) error
+	Delete(ctx context.Context, waitInterval, podEvictionWaitPeriod time.Duration, wait, force, disableNodegroupEviction bool, parallel int) error
 }
 
-func New(cfg *api.ClusterConfig, ctl *eks.ClusterProvider) (Cluster, error) {
+func New(ctx context.Context, cfg *api.ClusterConfig, ctl *eks.ClusterProvider) (Cluster, error) {
 	clusterExists := true
-	err := ctl.RefreshClusterStatusIfStale(cfg)
-	if err != nil {
+	if err := ctl.RefreshClusterStatusIfStale(cfg); err != nil {
 		if awsError, ok := errors.Unwrap(errors.Unwrap(err)).(awserr.Error); ok &&
 			awsError.Code() == awseks.ErrCodeResourceNotFoundException {
 			clusterExists = false
@@ -31,7 +32,7 @@ func New(cfg *api.ClusterConfig, ctl *eks.ClusterProvider) (Cluster, error) {
 	}
 
 	stackManager := ctl.NewStackManager(cfg)
-	clusterStack, err := stackManager.GetClusterStackIfExists()
+	clusterStack, err := stackManager.GetClusterStackIfExists(ctx)
 	if err != nil {
 		return nil, err
 	}

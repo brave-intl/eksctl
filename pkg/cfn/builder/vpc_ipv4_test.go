@@ -1,24 +1,28 @@
 package builder_test
 
 import (
+	"context"
 	"encoding/json"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	gfnt "github.com/weaveworks/goformation/v4/cloudformation/types"
+
 	api "github.com/weaveworks/eksctl/pkg/apis/eksctl.io/v1alpha5"
 	"github.com/weaveworks/eksctl/pkg/cfn/builder"
 	"github.com/weaveworks/eksctl/pkg/cfn/builder/fakes"
-	"github.com/weaveworks/eksctl/pkg/eks/mocks"
-	gfnt "github.com/weaveworks/goformation/v4/cloudformation/types"
+	"github.com/weaveworks/eksctl/pkg/eks/mocksv2"
 )
 
 var _ = Describe("VPC Template Builder", func() {
 	var (
 		vpcRs   *builder.IPv4VPCResourceSet
 		cfg     *api.ClusterConfig
-		mockEC2 = &mocks.EC2API{}
+		mockEC2 = &mocksv2.EC2{}
 	)
 
 	BeforeEach(func() {
@@ -40,7 +44,7 @@ var _ = Describe("VPC Template Builder", func() {
 		)
 
 		JustBeforeEach(func() {
-			vpcID, subnetDetails, addErr = vpcRs.CreateTemplate()
+			vpcID, subnetDetails, addErr = vpcRs.CreateTemplate(context.Background())
 			vpcTemplate = &fakes.FakeTemplate{}
 			templateBody, err := vpcRs.RenderJSON()
 			Expect(err).ShouldNot(HaveOccurred())
@@ -286,6 +290,16 @@ var _ = Describe("VPC Template Builder", func() {
 				assertIpv6CidrBlockCreatedWithSelect(vpcTemplate.Resources["PrivateUSWEST2BCIDRv6"].Properties.Ipv6CidrBlock, expectedFnCIDR)
 				assertIpv6CidrBlockCreatedWithSelect(vpcTemplate.Resources["PrivateUSWEST2ACIDRv6"].Properties.Ipv6CidrBlock, expectedFnCIDR)
 			})
+
+			It("adds the ipv6 route table entry", func() {
+				Expect(vpcTemplate.Resources).To(HaveKey(pubRouteTable))
+				Expect(vpcTemplate.Resources[pubRouteTable].Properties.VpcID).To(Equal(makeRef(vpcResourceKey)))
+
+				Expect(vpcTemplate.Resources).To(HaveKey(builder.PubSubIPv6RouteKey))
+				Expect(vpcTemplate.Resources[builder.PubSubIPv6RouteKey].Properties.RouteTableID).To(Equal(makeRef(pubRouteTable)))
+				Expect(vpcTemplate.Resources[builder.PubSubIPv6RouteKey].Properties.DestinationIpv6CidrBlock).To(Equal(builder.InternetIPv6CIDR))
+				Expect(vpcTemplate.Resources[builder.PubSubIPv6RouteKey].Properties.GatewayID).To(Equal(makeRef(igwKey)))
+			})
 		})
 
 		Context("when the vpc is fully private", func() {
@@ -335,7 +349,7 @@ var _ = Describe("VPC Template Builder", func() {
 		)
 
 		JustBeforeEach(func() {
-			_, _, err := vpcRs.CreateTemplate()
+			_, _, err := vpcRs.CreateTemplate(context.Background())
 			Expect(err).NotTo(HaveOccurred())
 			vpcTemplate = &fakes.FakeTemplate{}
 			templateBody, err := vpcRs.RenderJSON()
@@ -381,7 +395,7 @@ var _ = Describe("VPC Template Builder", func() {
 
 	Describe("PublicSubnetRefs", func() {
 		It("returns the references of public subnets", func() {
-			_, subnetDetails, err := vpcRs.CreateTemplate()
+			_, subnetDetails, err := vpcRs.CreateTemplate(context.Background())
 			Expect(err).NotTo(HaveOccurred())
 			refs := subnetDetails.PublicSubnetRefs()
 			Expect(refs).To(HaveLen(2))
@@ -392,7 +406,7 @@ var _ = Describe("VPC Template Builder", func() {
 
 	Describe("PrivateSubnetRefs", func() {
 		It("returns the references of private subnets", func() {
-			_, subnetDetails, err := vpcRs.CreateTemplate()
+			_, subnetDetails, err := vpcRs.CreateTemplate(context.Background())
 			Expect(err).NotTo(HaveOccurred())
 			refs := subnetDetails.PrivateSubnetRefs()
 			Expect(refs).To(HaveLen(2))
@@ -418,9 +432,9 @@ func makeGetAttr(values ...interface{}) map[string]interface{} {
 
 func makeRTOutput(subnetIds []string, main bool) *ec2.DescribeRouteTablesOutput {
 	return &ec2.DescribeRouteTablesOutput{
-		RouteTables: []*ec2.RouteTable{{
+		RouteTables: []ec2types.RouteTable{{
 			RouteTableId: aws.String("this-is-a-route-table"),
-			Associations: []*ec2.RouteTableAssociation{{
+			Associations: []ec2types.RouteTableAssociation{{
 				SubnetId: aws.String(subnetIds[0]),
 				Main:     aws.Bool(main),
 			}, {

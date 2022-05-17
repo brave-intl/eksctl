@@ -7,7 +7,7 @@ jobs:
   rc:
     name: Trigger release build
     runs-on: ubuntu-latest
-    container: weaveworks/eksctl-build:ee59fb5e8ee8f345139ac63a070db2bc06fa0dc0
+    container: weaveworks/eksctl-build:ade448cab58af16007a9975c668de59b4763c8ab
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -20,7 +20,9 @@ jobs:
           path: |
             ~/.cache/go-build/
             ~/go/pkg/mod/
-          key: ${{ hashFiles('go.sum') }}
+          key: go-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            go-
       - name: Setup identity as weaveworksbot
         uses: ./.github/actions/setup-identity
         with:

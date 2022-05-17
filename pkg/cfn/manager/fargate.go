@@ -1,25 +1,22 @@
 package manager
 
 import (
+	"context"
 	"strings"
 
-	cfn "github.com/aws/aws-sdk-go/service/cloudformation"
+	"github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 )
-
-func isFargateStack(s *Stack) bool {
-	return strings.HasSuffix(*s.StackName, "-fargate")
-}
 
 // GetFargateStack returns the stack holding the fargate IAM
 // resources, if any
-func (c *StackCollection) GetFargateStack() (*Stack, error) {
-	stacks, err := c.DescribeStacks()
+func (c *StackCollection) GetFargateStack(ctx context.Context) (*Stack, error) {
+	stacks, err := c.DescribeStacks(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, s := range stacks {
-		if *s.StackStatus == cfn.StackStatusDeleteComplete {
+		if s.StackStatus == types.StackStatusDeleteComplete {
 			continue
 		}
 		if isFargateStack(s) {
@@ -28,4 +25,8 @@ func (c *StackCollection) GetFargateStack() (*Stack, error) {
 	}
 
 	return nil, nil
+}
+
+func isFargateStack(s *Stack) bool {
+	return strings.HasSuffix(*s.StackName, "-fargate")
 }
