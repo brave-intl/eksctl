@@ -287,8 +287,6 @@ github.com/aws/aws-sdk-go-v2/service/cloudformation v1.35.0 h1:2wmiMFK1XlNNvc3xD
 github.com/aws/aws-sdk-go-v2/service/cloudformation v1.35.0/go.mod h1:EV06EPuSb3m40bD1suX/QSj3o161aG/6Wwbodk2vqzA=
 github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.29.2 h1:S9sfsAGkT/5e0bzqLMK7k3DkoZEz0EioL336dT+sCIM=
 github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.29.2/go.mod h1:N6mA9PPSL2C2drFl+Yx8oEUiuSGhOiplOixRGWc2OYM=
-github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.24.1 h1:NL2HEgcchk/QTa9/8GgrZvmfvCwqCDknvzAOMuvANnU=
-github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.24.1/go.mod h1:ZD/6Xew+gqhnRBg9iRXNYZOhp4BXKfqe7JRrtOnIh8s=
 github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.24.2 h1:g2t+hNCOYWICWs0cQLXk86DnXQMXgx1omrAGEpF/d68=
 github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.24.2/go.mod h1:5ngOUsc/7/voqXQ5Mn5T5l9/rWopTMgu7hk+4Fl2AS4=
 github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.27.2 h1:3rlmecRLKVdb3HuszS+vmNH8iux3MGv+xeaRL+jjXuc=
@@ -517,8 +515,8 @@ github.com/docker/cli v20.10.21+incompatible h1:qVkgyYUnOLQ98LtXBrwd/duVqPT2X4SH
 github.com/docker/cli v20.10.21+incompatible/go.mod h1:JLrzqnKDaYBop7H2jaqPtU4hHvMKP+vjCwu2uszcLI8=
 github.com/docker/distribution v2.8.2+incompatible h1:T3de5rq0dB1j30rp0sA2rER+m322EBzniBPB6ZIzuh8=
 github.com/docker/distribution v2.8.2+incompatible/go.mod h1:J2gT2udsDAN96Uj4KfcMRqY0/ypR+oyYUYmja8H+y+w=
-github.com/docker/docker v20.10.24+incompatible h1:Ugvxm7a8+Gz6vqQYQQ2W7GYq5EUPaAiuPgIfVyI3dYE=
-github.com/docker/docker v20.10.24+incompatible/go.mod h1:eEKB0N0r5NX/I1kEveEz05bcu8tLC/8azJZsviup8Sk=
+github.com/docker/docker v24.0.7+incompatible h1:Wo6l37AuwP3JaMnZa226lzVXGA3F9Ig1seQen0cKYlM=
+github.com/docker/docker v24.0.7+incompatible/go.mod h1:eEKB0N0r5NX/I1kEveEz05bcu8tLC/8azJZsviup8Sk=
 github.com/docker/docker-credential-helpers v0.7.0 h1:xtCHsjxogADNZcdv1pKUHXryefjlVRqWqIhk/uXJp0A=
 github.com/docker/docker-credential-helpers v0.7.0/go.mod h1:rETQfLdHNT3foU5kuNkFR1R1V12OJRRO5lzt2D1b5X0=
 github.com/docker/go-connections v0.4.0 h1:El9xVISelRB7BuFusrZozjnkIM5YnzCViNKohAFqRJQ=
