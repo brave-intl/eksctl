@@ -470,6 +470,9 @@ func newLaunchTemplateData(ctx context.Context, n *NodeGroupResourceSet) (*gfnec
 				CapacityReservationResourceGroupArn: valueOrNil(ng.CapacityReservation.CapacityReservationTarget.CapacityReservationResourceGroupARN),
 			}
 		}
+		tmp := "capacity-block"
+		launchTemplateData.InstanceMarketOptions = &gfnec2.LaunchTemplate_InstanceMarketOptions{}
+		launchTemplateData.InstanceMarketOptions.MarketType = valueOrNil(&tmp)
 	}
 
 	if err := buildNetworkInterfaces(ctx, launchTemplateData, ng.InstanceTypeList(), api.IsEnabled(ng.EFAEnabled), n.securityGroups, n.ec2API); err != nil {
