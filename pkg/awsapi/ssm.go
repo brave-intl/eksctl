@@ -277,6 +277,9 @@ type SSM interface {
 	// Retrieves information about the patches on the specified managed node and their
 	// state relative to the patch baseline being used for the node.
 	DescribeInstancePatches(ctx context.Context, params *DescribeInstancePatchesInput, optFns ...func(*Options)) (*DescribeInstancePatchesOutput, error)
+	// An API operation used by the Systems Manager console to display information
+	// about Systems Manager managed nodes.
+	DescribeInstanceProperties(ctx context.Context, params *DescribeInstancePropertiesInput, optFns ...func(*Options)) (*DescribeInstancePropertiesOutput, error)
 	// Describes a specific delete inventory operation.
 	DescribeInventoryDeletions(ctx context.Context, params *DescribeInventoryDeletionsInput, optFns ...func(*Options)) (*DescribeInventoryDeletionsOutput, error)
 	// Retrieves the individual task executions (one per target) for a particular task
