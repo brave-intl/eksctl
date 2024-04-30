@@ -451,8 +451,11 @@ func newLaunchTemplateData(ctx context.Context, n *NodeGroupResourceSet) (*gfnec
 		},
 		ImageId:           gfnt.NewString(ng.AMI),
 		UserData:          gfnt.NewString(userData),
-		MetadataOptions:   makeMetadataOptions(ng.NodeGroupBase),
-		TagSpecifications: makeTags(ng.NodeGroupBase, n.options.ClusterConfig.Metadata),
+		MetadataOptions:   makeMetadataOptions(n.spec.NodeGroupBase),
+		TagSpecifications: makeTags(n.spec.NodeGroupBase, n.clusterSpec.Metadata),
+		EnclaveOptions: &gfnec2.LaunchTemplate_EnclaveOptions{
+			Enabled: gfnt.NewBoolean(n.spec.EnclaveEnabled),
+		},
 	}
 
 	if ng.CapacityReservation != nil {
