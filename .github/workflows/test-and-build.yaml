@@ -1,3 +1,4 @@
+
 name: test-and-build
 
 on:
@@ -45,3 +46,4 @@ jobs:
       - name: build
         run: |
           PATH=$PATH:$(go env GOPATH)/bin make -f Makefile.docker check-build-image-manifest-up-to-date
+
