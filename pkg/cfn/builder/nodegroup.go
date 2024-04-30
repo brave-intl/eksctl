@@ -451,9 +451,9 @@ func newLaunchTemplateData(ctx context.Context, n *NodeGroupResourceSet) (*gfnec
 		},
 		ImageId:           gfnt.NewString(ng.AMI),
 		UserData:          gfnt.NewString(userData),
-		MetadataOptions:   makeMetadataOptions(n.spec.NodeGroupBase),
-		TagSpecifications: makeTags(n.spec.NodeGroupBase, n.clusterSpec.Metadata),
-		EnclaveOptions: &gfnec2.LaunchTemplate_EnclaveOptions{
+		MetadataOptions:   makeMetadataOptions(ng.NodeGroupBase),
+		TagSpecifications: makeTags(ng.NodeGroupBase, n.options.ClusterConfig.Metadata),
+    EnclaveOptions: &gfnec2.LaunchTemplate_EnclaveOptions{
 			Enabled: gfnt.NewBoolean(n.spec.EnclaveEnabled),
 		},
 	}
@@ -473,6 +473,9 @@ func newLaunchTemplateData(ctx context.Context, n *NodeGroupResourceSet) (*gfnec
 				CapacityReservationResourceGroupArn: valueOrNil(ng.CapacityReservation.CapacityReservationTarget.CapacityReservationResourceGroupARN),
 			}
 		}
+		tmp := "capacity-block"
+		launchTemplateData.InstanceMarketOptions = &gfnec2.LaunchTemplate_InstanceMarketOptions{}
+		launchTemplateData.InstanceMarketOptions.MarketType = valueOrNil(&tmp)
 	}
 
 	if err := buildNetworkInterfaces(ctx, launchTemplateData, ng.InstanceTypeList(), api.IsEnabled(ng.EFAEnabled), n.securityGroups, n.ec2API); err != nil {
