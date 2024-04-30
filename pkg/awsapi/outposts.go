@@ -17,6 +17,8 @@ type Outposts interface {
 	// config. Config overrides should instead be made on a per-operation basis through
 	// functional options.
 	Options() outposts.Options
+	// Cancels the capacity task.
+	CancelCapacityTask(ctx context.Context, params *CancelCapacityTaskInput, optFns ...func(*Options)) (*CancelCapacityTaskOutput, error)
 	// Cancels the specified order for an Outpost.
 	CancelOrder(ctx context.Context, params *CancelOrderInput, optFns ...func(*Options)) (*CancelOrderOutput, error)
 	// Creates an order for an Outpost.
@@ -29,6 +31,8 @@ type Outposts interface {
 	DeleteOutpost(ctx context.Context, params *DeleteOutpostInput, optFns ...func(*Options)) (*DeleteOutpostOutput, error)
 	// Deletes the specified site.
 	DeleteSite(ctx context.Context, params *DeleteSiteInput, optFns ...func(*Options)) (*DeleteSiteOutput, error)
+	// Gets details of the specified capacity task.
+	GetCapacityTask(ctx context.Context, params *GetCapacityTaskInput, optFns ...func(*Options)) (*GetCapacityTaskOutput, error)
 	// Gets information about the specified catalog item.
 	GetCatalogItem(ctx context.Context, params *GetCatalogItemInput, optFns ...func(*Options)) (*GetCatalogItemOutput, error)
 	// Amazon Web Services uses this action to install Outpost servers. Gets
@@ -46,6 +50,10 @@ type Outposts interface {
 	GetOutpost(ctx context.Context, params *GetOutpostInput, optFns ...func(*Options)) (*GetOutpostOutput, error)
 	// Gets the instance types for the specified Outpost.
 	GetOutpostInstanceTypes(ctx context.Context, params *GetOutpostInstanceTypesInput, optFns ...func(*Options)) (*GetOutpostInstanceTypesOutput, error)
+	// Gets the instance types that an Outpost can support in InstanceTypeCapacity .
+	// This will generally include instance types that are not currently configured and
+	// therefore cannot be launched with the current Outpost capacity configuration.
+	GetOutpostSupportedInstanceTypes(ctx context.Context, params *GetOutpostSupportedInstanceTypesInput, optFns ...func(*Options)) (*GetOutpostSupportedInstanceTypesOutput, error)
 	// Gets information about the specified Outpost site.
 	GetSite(ctx context.Context, params *GetSiteInput, optFns ...func(*Options)) (*GetSiteOutput, error)
 	// Gets the site address of the specified site.
@@ -56,6 +64,12 @@ type Outposts interface {
 	// specify multiple values, the results include items that match any of the values
 	// that you specify for the filter.
 	ListAssets(ctx context.Context, params *ListAssetsInput, optFns ...func(*Options)) (*ListAssetsOutput, error)
+	// Lists the capacity tasks for your Amazon Web Services account. Use filters to
+	// return specific results. If you specify multiple filters, the results include
+	// only the resources that match all of the specified filters. For a filter where
+	// you can specify multiple values, the results include items that match any of the
+	// values that you specify for the filter.
+	ListCapacityTasks(ctx context.Context, params *ListCapacityTasksInput, optFns ...func(*Options)) (*ListCapacityTasksOutput, error)
 	// Lists the items in the catalog. Use filters to return specific results. If you
 	// specify multiple filters, the results include only the resources that match all
 	// of the specified filters. For a filter where you can specify multiple values,
@@ -79,6 +93,9 @@ type Outposts interface {
 	ListSites(ctx context.Context, params *ListSitesInput, optFns ...func(*Options)) (*ListSitesOutput, error)
 	// Lists the tags for the specified resource.
 	ListTagsForResource(ctx context.Context, params *ListTagsForResourceInput, optFns ...func(*Options)) (*ListTagsForResourceOutput, error)
+	// Starts the specified capacity task. You can have one active capacity task for
+	// an order.
+	StartCapacityTask(ctx context.Context, params *StartCapacityTaskInput, optFns ...func(*Options)) (*StartCapacityTaskOutput, error)
 	// Amazon Web Services uses this action to install Outpost servers. Starts the
 	// connection required for Outpost server installation. Use CloudTrail to monitor
 	// this action or Amazon Web Services managed policy for Amazon Web Services
