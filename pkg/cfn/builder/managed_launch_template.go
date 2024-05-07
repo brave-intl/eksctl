@@ -34,9 +34,6 @@ func (m *ManagedNodeGroupResourceSet) makeLaunchTemplateData(ctx context.Context
 				CapacityReservationResourceGroupArn: valueOrNil(mng.CapacityReservation.CapacityReservationTarget.CapacityReservationResourceGroupARN),
 			}
 		}
-		tmp := "capacity-block"
-		launchTemplateData.InstanceMarketOptions = &gfnec2.LaunchTemplate_InstanceMarketOptions{}
-		launchTemplateData.InstanceMarketOptions.MarketType = valueOrNil(&tmp)
 	}
 
 	userData, err := m.bootstrapper.UserData()
