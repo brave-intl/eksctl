@@ -755,8 +755,8 @@ github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.11.3 h1:dT3MqvG
 github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.11.3/go.mod h1:GlAeCkHwugxdHaueRr4nhPuY+WW+gR8UjlcqzPr1SPI=
 github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.11.15 h1:I9zMeF107l0rJrpnHpjEiiTSCKYAIw8mALiXcPsGBiA=
 github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.11.15/go.mod h1:9xWJ3Q/S6Ojusz1UIkfycgD1mGirJfLLKqq3LPT7WN8=
-github.com/aws/aws-sdk-go-v2/service/kms v1.35.1 h1:0gP2OJJT6HM2BYltZ9x+A87OE8LJL96DXeAAdLv3t1M=
-github.com/aws/aws-sdk-go-v2/service/kms v1.35.1/go.mod h1:hGONorZkQCfR5DW6l2xdy7zC8vfO0r9pJlwyg6gmGeo=
+github.com/aws/aws-sdk-go-v2/service/kms v1.35.3 h1:UPTdlTOwWUX49fVi7cymEN6hDqCwe3LNv1vi7TXUutk=
+github.com/aws/aws-sdk-go-v2/service/kms v1.35.3/go.mod h1:gjDP16zn+WWalyaUqwCCioQ8gU8lzttCCc9jYsiQI/8=
 github.com/aws/aws-sdk-go-v2/service/outposts v1.39.0 h1:6fKMCfPQQ97e9PsH+P1bnNk+WDvpvFgqFBVQa/gSbJI=
 github.com/aws/aws-sdk-go-v2/service/outposts v1.39.0/go.mod h1:6fqELmjNXUPBviJYhN4QzmMQRtuPAREMRKlhzfBD8j0=
 github.com/aws/aws-sdk-go-v2/service/pricing v1.17.0 h1:RQOMvPwte2H4ZqsiZmrla1crhBWDFnW8bZynkec5cGU=
