@@ -77,11 +77,11 @@ type stackManagerDelegate struct {
 	ngTaskCreator nodeGroupTaskCreator
 }
 
-func (s *stackManagerDelegate) NewUnmanagedNodeGroupTask(ctx context.Context, nodeGroups []*api.NodeGroup, forceAddCNIPolicy, skipEgressRules, disableAccessEntryCreation bool, vpcImporter vpc.Importer) *tasks.TaskTree {
+func (s *stackManagerDelegate) NewUnmanagedNodeGroupTask(ctx context.Context, nodeGroups []*api.NodeGroup, forceAddCNIPolicy, skipEgressRules, disableAccessEntryCreation bool, vpcImporter vpc.Importer, nodeGroupParallelism int) *tasks.TaskTree {
 	return s.ngTaskCreator.NewUnmanagedNodeGroupTask(ctx, nodeGroups, forceAddCNIPolicy, skipEgressRules, disableAccessEntryCreation, vpcImporter)
 }
 
-func (s *stackManagerDelegate) NewManagedNodeGroupTask(context.Context, []*api.ManagedNodeGroup, bool, vpc.Importer) *tasks.TaskTree {
+func (s *stackManagerDelegate) NewManagedNodeGroupTask(context.Context, []*api.ManagedNodeGroup, bool, vpc.Importer, int) *tasks.TaskTree {
 	return nil
 }
 
@@ -168,7 +168,7 @@ var _ = DescribeTable("Create", func(t ngEntry) {
 		mockCalls: func(m mockCalls) {
 			m.kubeProvider.NewRawClientReturns(&kubernetes.RawClient{}, nil)
 			m.kubeProvider.ServerVersionReturns("1.17", nil)
-			m.mockProvider.MockCloudFormation().On("ListStacks", mock.Anything, mock.Anything).Return(&cloudformation.ListStacksOutput{
+			m.mockProvider.MockCloudFormation().On("ListStacks", mock.Anything, mock.Anything, mock.Anything).Return(&cloudformation.ListStacksOutput{
 				StackSummaries: []cftypes.StackSummary{
 					{
 						StackName:   aws.String("eksctl-my-cluster-cluster"),
@@ -269,6 +269,7 @@ var _ = DescribeTable("Create", func(t ngEntry) {
 		},
 		expectedErr: fmt.Errorf("all private subnets from vpc-1, that the cluster was originally created on, have been deleted; to create private nodegroups within vpc-1 please manually set valid private subnets via nodeGroup.SubnetIDs"),
 	}),
+
 	Entry("fails when nodegroup uses privateNetworking:false and there's no public subnet within vpc", ngEntry{
 		mockCalls: func(m mockCalls) {
 			mockProviderWithVPCSubnets(m.mockProvider, &vpcSubnets{
@@ -277,6 +278,7 @@ var _ = DescribeTable("Create", func(t ngEntry) {
 		},
 		expectedErr: fmt.Errorf("all public subnets from vpc-1, that the cluster was originally created on, have been deleted; to create public nodegroups within vpc-1 please manually set valid public subnets via nodeGroup.SubnetIDs"),
 	}),
+
 	Entry("fails when nodegroup uses privateNetworking:true and there's no private subnet within az", ngEntry{
 		updateClusterConfig: func(c *api.ClusterConfig) {
 			c.NodeGroups[0].PrivateNetworking = true
@@ -290,9 +292,25 @@ var _ = DescribeTable("Create", func(t ngEntry) {
 		},
 		expectedErr: fmt.Errorf("all private subnets from us-west-2b, that the cluster was originally created on, have been deleted; to create private nodegroups within us-west-2b please manually set valid private subnets via nodeGroup.SubnetIDs"),
 	}),
+
 	Entry("fails when nodegroup uses privateNetworking:false and there's no private subnet within az", ngEntry{
 		updateClusterConfig: func(c *api.ClusterConfig) {
 			c.NodeGroups[0].AvailabilityZones = []string{"us-west-2a", "us-west-2b"}
+			c.VPC.Subnets = &api.ClusterSubnets{
+				Private: api.AZSubnetMapping{
+					"private-1": api.AZSubnetSpec{
+						ID: "subnet-private-1",
+					},
+					"private-2": api.AZSubnetSpec{
+						ID: "subnet-private-2",
+					},
+				},
+				Public: api.AZSubnetMapping{
+					"public-1": api.AZSubnetSpec{
+						ID: "subnet-public-2",
+					},
+				},
+			}
 		},
 		mockCalls: func(m mockCalls) {
 			mockProviderWithVPCSubnets(m.mockProvider, &vpcSubnets{
@@ -836,7 +854,7 @@ func mockProviderWithVPCSubnets(p *mockprovider.MockProvider, subnets *vpcSubnet
 }
 
 func mockProviderWithConfig(p *mockprovider.MockProvider, describeStacksOutput []cftypes.Output, subnets *vpcSubnets, vpcConfigRes *ekstypes.VpcConfigResponse, outpostConfig *ekstypes.OutpostConfigResponse, accessConfig *ekstypes.AccessConfigResponse) {
-	p.MockCloudFormation().On("ListStacks", mock.Anything, mock.Anything).Return(&cloudformation.ListStacksOutput{
+	p.MockCloudFormation().On("ListStacks", mock.Anything, mock.Anything, mock.Anything).Return(&cloudformation.ListStacksOutput{
 		StackSummaries: []cftypes.StackSummary{
 			{
 				StackName:   aws.String("eksctl-my-cluster-cluster"),
@@ -968,7 +986,7 @@ func mockProviderWithConfig(p *mockprovider.MockProvider, describeStacksOutput [
 		if vpcID == "" {
 			mp.MockEC2().On("DescribeSubnets", mock.Anything, &ec2.DescribeSubnetsInput{
 				SubnetIds: subnetIDs,
-			}).Return(&ec2.DescribeSubnetsOutput{Subnets: subnets}, nil)
+			}, mock.Anything).Return(&ec2.DescribeSubnetsOutput{Subnets: subnets}, nil)
 			return
 		}
 		mp.MockEC2().On("DescribeSubnets", mock.Anything, &ec2.DescribeSubnetsInput{
@@ -978,7 +996,7 @@ func mockProviderWithConfig(p *mockprovider.MockProvider, describeStacksOutput [
 					Values: []string{vpcID},
 				},
 			},
-		}).Return(&ec2.DescribeSubnetsOutput{Subnets: subnets}, nil)
+		}, mock.Anything).Return(&ec2.DescribeSubnetsOutput{Subnets: subnets}, nil)
 	}
 
 	mockDescribeSubnets(p, "", subnets.publicIDs)
@@ -1003,7 +1021,7 @@ func mockProviderWithConfig(p *mockprovider.MockProvider, describeStacksOutput [
 func mockProviderForUnownedCluster(p *mockprovider.MockProvider, k *eksfakes.FakeKubeProvider, extraSGRules ...ec2types.SecurityGroupRule) {
 	k.NewRawClientReturns(&kubernetes.RawClient{}, nil)
 	k.ServerVersionReturns("1.27", nil)
-	p.MockCloudFormation().On("ListStacks", mock.Anything, mock.Anything).Return(&cloudformation.ListStacksOutput{
+	p.MockCloudFormation().On("ListStacks", mock.Anything, mock.Anything, mock.Anything).Return(&cloudformation.ListStacksOutput{
 		StackSummaries: []cftypes.StackSummary{
 			{
 				StackName:   aws.String("eksctl-my-cluster-cluster"),
@@ -1034,7 +1052,7 @@ func mockProviderForUnownedCluster(p *mockprovider.MockProvider, k *eksfakes.Fak
 			},
 		},
 	}, nil)
-	p.MockEC2().On("DescribeSubnets", mock.Anything, mock.Anything).Return(&ec2.DescribeSubnetsOutput{
+	p.MockEC2().On("DescribeSubnets", mock.Anything, mock.Anything, mock.Anything).Return(&ec2.DescribeSubnetsOutput{
 		Subnets: []ec2types.Subnet{
 			{
 				SubnetId:         aws.String("subnet-custom1"),
@@ -1058,7 +1076,7 @@ func mockProviderForUnownedCluster(p *mockprovider.MockProvider, k *eksfakes.Fak
 		}
 		filter := input.Filters[0]
 		return *filter.Name == "group-id" && len(filter.Values) == 1 && filter.Values[0] == *sgID
-	})).Return(&ec2.DescribeSecurityGroupRulesOutput{
+	}), mock.Anything).Return(&ec2.DescribeSecurityGroupRulesOutput{
 		SecurityGroupRules: append([]ec2types.SecurityGroupRule{
 			{
 				Description:         aws.String("Allow control plane to communicate with worker nodes in group ng-1 (kubelet and workload TCP ports"),
@@ -1117,4 +1135,9 @@ func makeUnownedClusterConfig(clusterConfig *api.ClusterConfig) {
 			},
 		},
 	}
+	clusterConfig.NodeGroups = append(clusterConfig.NodeGroups, &api.NodeGroup{
+		NodeGroupBase: &api.NodeGroupBase{
+			Name: "ng",
+		},
+	})
 }
