@@ -22,6 +22,7 @@ jobs:
     env:
       GOPRIVATE: ""
     steps:
+<<<<<<< HEAD
     - name: Checkout
       uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 #v4.1.2
       with:
@@ -65,3 +66,63 @@ jobs:
           [1]: https://github.com/eksctl-io/eksctl/blob/main/.github/workflows/update-generated.yaml
 
           Please manually test before approving and merging.
+=======
+      - name: Checkout
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b #v4.1.4
+        with:
+          token: ${{ secrets.EKSCTLBOT_TOKEN }}
+          fetch-depth: 0
+      - name: Configure AWS credentials for coredns update
+        if: ${{ matrix.resource == 'coredns' }}
+        uses: aws-actions/configure-aws-credentials@010d0da01d0b5a38af31e9c3470dbfdabdecca3a # v4.0.1
+        with:
+          aws-region: us-west-2
+          role-duration-seconds: 900
+          role-session-name: eksctl-update-coredns-assets
+          role-to-assume: ${{ secrets.UPDATE_COREDNS_ROLE_ARN }}
+      - name: Setup identity as eksctl-bot
+        uses: ./.github/actions/setup-identity
+        with:
+          token: "${{ secrets.EKSCTLBOT_TOKEN }}"
+      - name: Cache go-build and mod
+        uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 #v4.0.2
+        with:
+          path: |
+            ~/.cache/go-build/
+            ~/go/pkg/mod/
+          key: go-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            go-
+      - name: Update ${{ matrix.resource }}
+        run: make update-${{ matrix.resource }}
+      - name: Commit changes
+        id: commit
+        run: |
+          git checkout $DEFAULT_BRANCH
+          git checkout -B update-${{ matrix.resource }}
+          git add -u
+          if ! EDITOR=true git commit -m "Update ${{ matrix.resource }}"; then
+            echo "changes=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "changes=true" >> $GITHUB_OUTPUT
+          ! git diff --exit-code $DEFAULT_BRANCH HEAD
+          git push --force-with-lease origin HEAD
+      - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea #v7.0.1
+        name: Open PR to ${{env.DEFAULT_BRANCH}}
+        if: steps.commit.outputs.changes == 'true'
+        with:
+          github-token: ${{ secrets.EKSCTLBOT_TOKEN }}
+          script: |
+            const { data: pr } = await github.rest.pulls.create({
+              ...context.repo,
+              title: "Update ${{ matrix.resource }}",
+              head: "update-${{ matrix.resource }}",
+              base: "${{ env.DEFAULT_BRANCH }}",
+            });
+            await github.rest.issues.addLabels({
+              ...context.repo,
+              issue_number: pr.number,
+              labels: ["kind/improvement"],
+            });
+>>>>>>> 9b8a9ca9c (Bump actions/checkout from 4.1.1 to 4.1.4)
