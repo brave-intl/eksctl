@@ -618,7 +618,7 @@ type SSM interface {
 	//     managed key, and you must share the key separately through Key Management
 	//     Service. Amazon Web Services managed keys cannot be shared. Parameters encrypted
 	//     with the default Amazon Web Services managed key can be updated to use a
-	//     customer managed key instead. For KMS key definitions, see KMS concepts (https://docs.aws.amazon.com/kms/latest/developerguide/concepts.html)
+	//     customer managed key instead. For KMS key definitions, see KMS concepts (https://docs.aws.amazon.com/kms/latest/developerguide/concepts.html#key-mgmt)
 	//     in the Key Management Service Developer Guide. While you can share a parameter
 	//     using the Systems Manager PutResourcePolicy operation, we recommend using
 	//     Resource Access Manager (RAM) instead. This is because using PutResourcePolicy
