@@ -2,7 +2,7 @@ name: Update generated files
 on:
   workflow_dispatch: {}
   schedule:
-    - cron: "0 5 * * Thu"
+  - cron: "0 5 * * Thu"
 
 permissions:
   id-token: write
@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        resource: ["coredns", "aws-node"]    
+        resource: ["coredns", "aws-node", "nvidia-device-plugin"]
     name: Update ${{ matrix.resource }} and open PR
     runs-on: ubuntu-latest
     container: public.ecr.aws/eksctl/eksctl-build:833f4464e865a6398788bf6cbc5447967b8974b7

@@ -12,14 +12,15 @@ require (
 	github.com/aws/aws-sdk-go v1.51.32
 	github.com/aws/aws-sdk-go-v2 v1.30.1
 	github.com/aws/aws-sdk-go-v2/config v1.27.11
-  github.com/aws/aws-sdk-go-v2/credentials v1.17.23
+    github.com/aws/aws-sdk-go-v2/credentials v1.17.23
 	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.43.1
 	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.50.0
+	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.52.1
 	github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.39.2
 	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.37.1
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.37.0
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.159.0
-	github.com/aws/aws-sdk-go-v2/service/eks v1.42.1
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.166.0
+	github.com/aws/aws-sdk-go-v2/service/eks v1.44.1
 	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing v1.24.4
 	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2 v1.30.5
 	github.com/aws/aws-sdk-go-v2/service/iam v1.32.0
@@ -84,8 +85,8 @@ require (
 	k8s.io/cloud-provider v0.28.0
 	k8s.io/code-generator v0.29.0
 	k8s.io/kops v1.28.4
-	k8s.io/kubelet v0.28.1
-	k8s.io/utils v0.0.0-20230726121419-3b25d923346b
+	k8s.io/kubelet v0.29.1
+	k8s.io/utils v0.0.0-20240102154912-e7106e64919e
 	sigs.k8s.io/mdtoc v1.3.0
 	sigs.k8s.io/yaml v1.4.0
 )
@@ -124,7 +125,7 @@ require (
 	github.com/ashanbrown/makezero v1.1.1 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.3 // indirect
-  github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.9 // indirect
+    github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.9 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.13 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.13 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.0 // indirect
@@ -146,6 +147,7 @@ require (
 	github.com/butuzov/mirror v1.2.0 // indirect
 	github.com/catenacyber/perfsprint v0.7.1 // indirect
 	github.com/ccojocar/zxcvbn-go v1.0.2 // indirect
+	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chai2010/gettext-go v1.0.2 // indirect
 	github.com/charithe/durationcheck v0.0.10 // indirect
@@ -157,9 +159,13 @@ require (
 	github.com/ckaznocha/intrange v0.1.2 // indirect
 	github.com/common-nighthawk/go-figure v0.0.0-20210622060536-734e95fb86be // indirect
 	github.com/containerd/console v1.0.4-0.20230313162750-1ae8d489ac81 // indirect
-	github.com/containerd/containerd v1.7.12 // indirect
+	github.com/containerd/containerd v1.7.13 // indirect
 	github.com/containerd/log v0.1.0 // indirect
-	github.com/containerd/stargz-snapshotter/estargz v0.14.3 // indirect
+	github.com/coreos/bbolt v1.3.2 // indirect
+	github.com/coreos/etcd v3.3.13+incompatible // indirect
+	github.com/coreos/go-semver v0.3.1 // indirect
+	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.3 // indirect
 	github.com/curioswitch/go-reassign v0.2.0 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.4 // indirect
 	github.com/daixiang0/gci v0.13.4 // indirect
@@ -204,6 +210,8 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.0.0 // indirect
 	github.com/go-xmlfmt/xmlfmt v1.1.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
+	github.com/golang/glog v1.1.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golangci/dupl v0.0.0-20180902072040-3e9179ac440a // indirect
@@ -374,6 +382,7 @@ require (
 	github.com/ultraware/whitespace v0.1.1 // indirect
 	github.com/uudashr/gocognit v1.1.2 // indirect
 	github.com/vbatts/tar-split v0.11.3 // indirect
+	github.com/vmware/govmomi v0.37.1 // indirect
 	github.com/voxelbrain/goptions v0.0.0-20180630082107-58cddc247ea2 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
