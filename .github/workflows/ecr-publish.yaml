@@ -15,10 +15,14 @@ jobs:
     steps:
       - name: Checkout repo
 <<<<<<< HEAD
+<<<<<<< HEAD
         uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 #v4.1.2
 =======
         uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b #v4.1.4
 >>>>>>> 9b8a9ca9c (Bump actions/checkout from 4.1.1 to 4.1.4)
+=======
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 #v4.1.7
+>>>>>>> e4301e573 (Bump actions/checkout from 4.1.4 to 4.1.7 (#565))
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
