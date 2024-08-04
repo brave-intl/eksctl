@@ -49,7 +49,6 @@ const (
 	DefaultVersion = Version1_30
 
 	LatestVersion = Version1_30
->>>>>>> eksctl-io-main
 
 	DockershimDeprecationVersion = Version1_24
 )
