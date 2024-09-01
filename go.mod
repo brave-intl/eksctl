@@ -75,12 +75,12 @@ require (
 	golang.org/x/sync v0.8.0
 	golang.org/x/tools v0.23.0
 	gopkg.in/yaml.v2 v2.4.0
-	helm.sh/helm/v3 v3.15.2
+	helm.sh/helm/v3 v3.15.4
 	k8s.io/api v0.30.3
-	k8s.io/apiextensions-apiserver v0.30.1
+	k8s.io/apiextensions-apiserver v0.30.3
 	k8s.io/apimachinery v0.30.3
-	k8s.io/cli-runtime v0.30.0
-	k8s.io/client-go v0.30.1
+	k8s.io/cli-runtime v0.30.3
+	k8s.io/client-go v0.30.3
 	k8s.io/cloud-provider v0.28.0
 	k8s.io/code-generator v0.30.3
 	k8s.io/kops v1.28.4
@@ -411,7 +411,7 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.4.7 // indirect
-	k8s.io/apiserver v0.30.1 // indirect
+	k8s.io/apiserver v0.30.3 // indirect
 	k8s.io/cloud-provider-aws v1.28.1 // indirect
 	k8s.io/component-base v0.30.3 // indirect
 	k8s.io/component-helpers v0.29.0 // indirect
@@ -419,7 +419,7 @@ require (
 	k8s.io/gengo v0.0.0-20240404160639-a0386bf69313 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
-	k8s.io/kubectl v0.30.0 // indirect
+	k8s.io/kubectl v0.30.3 // indirect
 	mvdan.cc/gofumpt v0.6.0 // indirect
 	mvdan.cc/unparam v0.0.0-20240528143540-8a5130ca722f // indirect
 	oras.land/oras-go v1.2.5 // indirect
