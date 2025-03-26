@@ -266,9 +266,7 @@ func (m *Manager) upgradeUsingStack(ctx context.Context, options UpgradeOptions,
 		latestReleaseVersion, err := m.getLatestReleaseVersion(ctx, kubernetesVersion, nodegroup)
 		if err != nil {
 			return err
-		}
-
-		if latestReleaseVersion != "" {
+		} else if latestReleaseVersion != "" {
 			if err := m.updateReleaseVersion(latestReleaseVersion, options.LaunchTemplateVersion, nodegroup, ngResource); err != nil {
 				return err
 			}
