@@ -11,7 +11,7 @@ require (
 	github.com/aws/aws-sdk-go v1.55.6
 	github.com/aws/aws-sdk-go-v2 v1.36.3
 	github.com/aws/aws-sdk-go-v2/config v1.29.9
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.62
+	github.com/aws/aws-sdk-go-v2/credentials v1.17.64
 	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.52.1
 	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.58.1
 	github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.48.2
@@ -143,8 +143,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/route53 v1.48.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.77.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.37.15 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.25.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.29.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.25.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.29.2 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bkielbasa/cyclop v1.2.3 // indirect
