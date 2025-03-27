@@ -33,12 +33,21 @@ type IAM interface {
 	// The caller of this operation must be granted the PassRole permission on the IAM
 	// role by a permissions policy.
 	//
+	// When using the [iam:AssociatedResourceArn] condition in a policy to restrict the [PassRole] IAM action, special
+	// considerations apply if the policy is intended to define access for the
+	// AddRoleToInstanceProfile action. In this case, you cannot specify a Region or
+	// instance ID in the EC2 instance ARN. The ARN value must be
+	// arn:aws:ec2:*:CallerAccountId:instance/* . Using any other ARN value may lead to
+	// unexpected evaluation results.
+	//
 	// For more information about roles, see [IAM roles] in the IAM User Guide. For more
 	// information about instance profiles, see [Using instance profiles]in the IAM User Guide.
 	//
 	// [disassociate the instance profile]: https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_DisassociateIamInstanceProfile.html
 	// [associate the instance profile]: https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_AssociateIamInstanceProfile.html
 	// [Using instance profiles]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_switch-role-ec2_instance-profiles.html
+	// [PassRole]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_passrole.html
+	// [iam:AssociatedResourceArn]: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#available-keys-for-iam
 	// [eventual consistency]: https://en.wikipedia.org/wiki/Eventual_consistency
 	// [IAM roles]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html
 	AddRoleToInstanceProfile(ctx context.Context, params *AddRoleToInstanceProfileInput, optFns ...func(*Options)) (*AddRoleToInstanceProfileOutput, error)
@@ -192,13 +201,11 @@ type IAM interface {
 	// You get all of this information from the OIDC IdP you want to use to access
 	// Amazon Web Services.
 	//
-	// Amazon Web Services secures communication with some OIDC identity providers
-	// (IdPs) through our library of trusted root certificate authorities (CAs) instead
-	// of using a certificate thumbprint to verify your IdP server certificate. In
-	// these cases, your legacy thumbprint remains in your configuration, but is no
-	// longer used for validation. These OIDC IdPs include Auth0, GitHub, GitLab,
-	// Google, and those that use an Amazon S3 bucket to host a JSON Web Key Set (JWKS)
-	// endpoint.
+	// Amazon Web Services secures communication with OIDC identity providers (IdPs)
+	// using our library of trusted root certificate authorities (CAs) to verify the
+	// JSON Web Key Set (JWKS) endpoint's TLS certificate. If your OIDC IdP relies on a
+	// certificate that is not signed by one of these trusted CAs, only then we secure
+	// communication using the thumbprints set in the IdP's configuration.
 	//
 	// The trust for the OIDC provider is derived from the IAM provider that this
 	// operation creates. Therefore, it is best to limit access to the CreateOpenIDConnectProvideroperation to
@@ -599,10 +606,53 @@ type IAM interface {
 	//
 	// [Managed policies and inline policies]: https://docs.aws.amazon.com/IAM/latest/UserGuide/policies-managed-vs-inline.html
 	DetachUserPolicy(ctx context.Context, params *DetachUserPolicyInput, optFns ...func(*Options)) (*DetachUserPolicyOutput, error)
+	// Disables the management of privileged root user credentials across member
+	// accounts in your organization. When you disable this feature, the management
+	// account and the delegated administrator for IAM can no longer manage root user
+	// credentials for member accounts in your organization.
+	DisableOrganizationsRootCredentialsManagement(ctx context.Context, params *DisableOrganizationsRootCredentialsManagementInput, optFns ...func(*Options)) (*DisableOrganizationsRootCredentialsManagementOutput, error)
+	// Disables root user sessions for privileged tasks across member accounts in your
+	// organization. When you disable this feature, the management account and the
+	// delegated administrator for IAM can no longer perform privileged tasks on member
+	// accounts in your organization.
+	DisableOrganizationsRootSessions(ctx context.Context, params *DisableOrganizationsRootSessionsInput, optFns ...func(*Options)) (*DisableOrganizationsRootSessionsOutput, error)
 	// Enables the specified MFA device and associates it with the specified IAM user.
 	// When enabled, the MFA device is required for every subsequent login by the IAM
 	// user associated with the device.
 	EnableMFADevice(ctx context.Context, params *EnableMFADeviceInput, optFns ...func(*Options)) (*EnableMFADeviceOutput, error)
+	// Enables the management of privileged root user credentials across member
+	// accounts in your organization. When you enable root credentials management for [centralized root access]
+	// , the management account and the delegated administrator for IAM can manage root
+	// user credentials for member accounts in your organization.
+	//
+	// Before you enable centralized root access, you must have an account configured
+	// with the following settings:
+	//
+	//   - You must manage your Amazon Web Services accounts in [Organizations].
+	//
+	//   - Enable trusted access for Identity and Access Management in Organizations.
+	//     For details, see [IAM and Organizations]in the Organizations User Guide.
+	//
+	// [Organizations]: https://docs.aws.amazon.com/organizations/latest/userguide/orgs_introduction.html
+	// [centralized root access]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_root-user.html#id_root-user-access-management
+	// [IAM and Organizations]: https://docs.aws.amazon.com/organizations/latest/userguide/services-that-can-integrate-iam.html
+	EnableOrganizationsRootCredentialsManagement(ctx context.Context, params *EnableOrganizationsRootCredentialsManagementInput, optFns ...func(*Options)) (*EnableOrganizationsRootCredentialsManagementOutput, error)
+	// Allows the management account or delegated administrator to perform privileged
+	// tasks on member accounts in your organization. For more information, see [Centrally manage root access for member accounts]in the
+	// Identity and Access Management User Guide.
+	//
+	// Before you enable this feature, you must have an account configured with the
+	// following settings:
+	//
+	//   - You must manage your Amazon Web Services accounts in [Organizations].
+	//
+	//   - Enable trusted access for Identity and Access Management in Organizations.
+	//     For details, see [IAM and Organizations]in the Organizations User Guide.
+	//
+	// [Centrally manage root access for member accounts]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_root-user.html#id_root-user-access-management
+	// [Organizations]: https://docs.aws.amazon.com/organizations/latest/userguide/orgs_introduction.html
+	// [IAM and Organizations]: https://docs.aws.amazon.com/organizations/latest/userguide/services-that-can-integrate-ra.html
+	EnableOrganizationsRootSessions(ctx context.Context, params *EnableOrganizationsRootSessionsInput, optFns ...func(*Options)) (*EnableOrganizationsRootSessionsOutput, error)
 	//	Generates a credential report for the Amazon Web Services account. For more
 	//
 	// information about the credential report, see [Getting credential reports]in the IAM User Guide.
@@ -1143,9 +1193,9 @@ type IAM interface {
 	ListAccessKeys(ctx context.Context, params *ListAccessKeysInput, optFns ...func(*Options)) (*ListAccessKeysOutput, error)
 	// Lists the account alias associated with the Amazon Web Services account (Note:
 	// you can have only one). For information about using an Amazon Web Services
-	// account alias, see [Creating, deleting, and listing an Amazon Web Services account alias]in the Amazon Web Services Sign-In User Guide.
+	// account alias, see [Creating, deleting, and listing an Amazon Web Services account alias]in the IAM User Guide.
 	//
-	// [Creating, deleting, and listing an Amazon Web Services account alias]: https://docs.aws.amazon.com/signin/latest/userguide/CreateAccountAlias.html
+	// [Creating, deleting, and listing an Amazon Web Services account alias]: https://docs.aws.amazon.com/IAM/latest/UserGuide/console_account-alias.html#CreateAccountAlias
 	ListAccountAliases(ctx context.Context, params *ListAccountAliasesInput, optFns ...func(*Options)) (*ListAccountAliasesOutput, error)
 	// Lists all managed policies that are attached to the specified IAM group.
 	//
@@ -1277,6 +1327,11 @@ type IAM interface {
 	// are an attribute of the returned object. To view all of the information for an
 	// OIDC provider, see GetOpenIDConnectProvider.
 	ListOpenIDConnectProviders(ctx context.Context, params *ListOpenIDConnectProvidersInput, optFns ...func(*Options)) (*ListOpenIDConnectProvidersOutput, error)
+	// Lists the centralized root access features enabled for your organization. For
+	// more information, see [Centrally manage root access for member accounts].
+	//
+	// [Centrally manage root access for member accounts]: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_root-user.html#id_root-user-access-management
+	ListOrganizationsFeatures(ctx context.Context, params *ListOrganizationsFeaturesInput, optFns ...func(*Options)) (*ListOrganizationsFeaturesOutput, error)
 	// Lists all the managed policies that are available in your Amazon Web Services
 	// account, including your own customer-defined managed policies and all Amazon Web
 	// Services managed policies.
@@ -2110,13 +2165,11 @@ type IAM interface {
 	// does change, any attempt to assume an IAM role that specifies the OIDC provider
 	// as a principal fails until the certificate thumbprint is updated.
 	//
-	// Amazon Web Services secures communication with some OIDC identity providers
-	// (IdPs) through our library of trusted root certificate authorities (CAs) instead
-	// of using a certificate thumbprint to verify your IdP server certificate. In
-	// these cases, your legacy thumbprint remains in your configuration, but is no
-	// longer used for validation. These OIDC IdPs include Auth0, GitHub, GitLab,
-	// Google, and those that use an Amazon S3 bucket to host a JSON Web Key Set (JWKS)
-	// endpoint.
+	// Amazon Web Services secures communication with OIDC identity providers (IdPs)
+	// using our library of trusted root certificate authorities (CAs) to verify the
+	// JSON Web Key Set (JWKS) endpoint's TLS certificate. If your OIDC IdP relies on a
+	// certificate that is not signed by one of these trusted CAs, only then we secure
+	// communication using the thumbprints set in the IdP's configuration.
 	//
 	// Trust for the OIDC provider is derived from the provider certificate and is
 	// validated by the thumbprint. Therefore, it is best to limit access to the
@@ -2129,11 +2182,9 @@ type IAM interface {
 	// Modifies only the description of a role. This operation performs the same
 	// function as the Description parameter in the UpdateRole operation.
 	UpdateRoleDescription(ctx context.Context, params *UpdateRoleDescriptionInput, optFns ...func(*Options)) (*UpdateRoleDescriptionOutput, error)
-	// Updates the metadata document for an existing SAML provider resource object.
-	//
-	// This operation requires [Signature Version 4].
-	//
-	// [Signature Version 4]: https://docs.aws.amazon.com/general/latest/gr/signature-version-4.html
+	// Updates the metadata document, SAML encryption settings, and private keys for
+	// an existing SAML provider. To rotate private keys, add your new private key and
+	// then remove the old key in a separate request.
 	UpdateSAMLProvider(ctx context.Context, params *UpdateSAMLProviderInput, optFns ...func(*Options)) (*UpdateSAMLProviderOutput, error)
 	// Sets the status of an IAM user's SSH public key to active or inactive. SSH
 	// public keys that are inactive cannot be used for authentication. This operation

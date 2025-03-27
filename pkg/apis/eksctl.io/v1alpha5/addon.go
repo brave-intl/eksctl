@@ -17,6 +17,7 @@ const (
 	KubeProxyAddon        = "kube-proxy"
 	CoreDNSAddon          = "coredns"
 	PodIdentityAgentAddon = "eks-pod-identity-agent"
+	MetricsServerAddon    = "metrics-server"
 	AWSEBSCSIDriverAddon  = "aws-ebs-csi-driver"
 	AWSEFSCSIDriverAddon  = "aws-efs-csi-driver"
 )
@@ -171,7 +172,7 @@ func (a Addon) checkAtMostOnePolicyProviderIsSet() error {
 		setPolicyProviders++
 	}
 
-	if a.AttachPolicyARNs != nil && len(a.AttachPolicyARNs) > 0 {
+	if len(a.AttachPolicyARNs) > 0 {
 		setPolicyProviders++
 	}
 

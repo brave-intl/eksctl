@@ -1,6 +1,7 @@
 package v1alpha5
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"regexp"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/hashicorp/go-version"
 	"github.com/kris-nova/logger"
-	"github.com/pkg/errors"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -31,6 +31,8 @@ const (
 	MaxThroughput = 1000
 	MinIO1Iops    = DefaultNodeVolumeIO1IOPS
 	MaxIO1Iops    = 64000
+	MinIO2Iops    = DefaultNodeVolumeIO2IOPS
+	MaxIO2Iops    = 256000
 	MinGP3Iops    = DefaultNodeVolumeGP3IOPS
 	MaxGP3Iops    = 16000
 	OneDay        = 86400
@@ -60,6 +62,10 @@ var (
 	GPUDriversWarning = func(amiFamily string) string {
 		return fmt.Sprintf("%s does not ship with NVIDIA GPU drivers installed, hence won't support running GPU-accelerated workloads out of the box", amiFamily)
 	}
+
+	NeuronDeviceDriversWarning = func(amiFamily string) string {
+		return fmt.Sprintf("%s does not ship with Neuron Devices drivers installed, hence won't support running inference-accelerated workloads out of the box", amiFamily)
+	}
 )
 
 var (
@@ -80,6 +86,59 @@ func (s nameSet) checkUnique(path, name string) (bool, error) {
 
 func setNonEmpty(field string) error {
 	return fmt.Errorf("%s must be set and non-empty", field)
+}
+
+func (c *ClusterConfig) validateRemoteNetworkingConfig() error {
+	rnc := c.RemoteNetworkConfig
+	if rnc == nil {
+		return nil
+	}
+
+	if c.IPv6Enabled() {
+		return fmt.Errorf("remoteNetworkConfig is not supported on EKS cluster configured with IPv6 address family")
+	}
+
+	if c.AccessConfig.AuthenticationMode == ekstypes.AuthenticationModeConfigMap {
+		return fmt.Errorf("remoteNetworkConfig requires authenticationMode to be either %q or %q", ekstypes.AuthenticationModeApiAndConfigMap, ekstypes.AuthenticationModeApi)
+	}
+
+	if len(rnc.RemoteNodeNetworks) == 0 {
+		return setNonEmpty("remoteNetworkConfig.remoteNodeNetworks")
+	}
+
+	if rnc.VPCGatewayID.IsSet() {
+		if c.VPC.ID != "" {
+			return fmt.Errorf("remoteNetworkConfig.vpcGatewayID is not supported when using pre-existing VPC")
+		}
+		// vpcGatewayId must be either a virtual private gateway or a transit gateway
+		if !rnc.VPCGatewayID.IsTransitGateway() && !rnc.VPCGatewayID.IsVirtualPrivateGateway() {
+			return fmt.Errorf("invalid value %q provided for remoteNetworkConfig.vpcGatewayID; "+
+				"only transit gateway (tgw-*) or virtual private gateway (vgw-*) IDs are supported", *rnc.VPCGatewayID)
+		}
+	}
+
+	// credentials provider must be either SSM or IAM Roles Anywhere
+	if !strings.EqualFold(*rnc.IAM.Provider, SSMProvider) &&
+		!strings.EqualFold(*rnc.IAM.Provider, IRAProvider) {
+		return fmt.Errorf("invalid value %q provided for remoteNetworkConfig.iam.provider; only %q and %q are supported",
+			*rnc.IAM.Provider, SSMProvider, IRAProvider)
+	}
+
+	// CABundleCert should only be set of credentials provider is IAM Roles Anywhere
+	if strings.EqualFold(*rnc.IAM.Provider, SSMProvider) && rnc.IAM.CABundleCert != nil {
+		return fmt.Errorf("remoteNetworkConfig.iam.caBundleCert is not supported when using SSM credentials provider")
+	}
+
+	if strings.EqualFold(*rnc.IAM.Provider, IRAProvider) && rnc.IAM.CABundleCert == nil {
+		return fmt.Errorf("remoteNetworkConfig.iam.caBundleCert is required when using IAMRolesAnywhere credentials provider")
+	}
+
+	if IsSetAndNonEmptyString(rnc.IAM.RoleARN) {
+		logger.Warning("remoteNetworkConfig.iam.roleARN is set; eksctl will add a corresponding entry in aws-auth configmap; " +
+			"but won't setup an additional SSM or IAMRolesAnywhere required config")
+	}
+
+	return nil
 }
 
 // ValidateClusterConfig checks compatible fields of a given ClusterConfig
@@ -103,6 +162,10 @@ func ValidateClusterConfig(cfg *ClusterConfig) error {
 	}
 
 	if err := cfg.validateKubernetesNetworkConfig(); err != nil {
+		return err
+	}
+
+	if err := cfg.validateRemoteNetworkingConfig(); err != nil {
 		return err
 	}
 
@@ -225,6 +288,9 @@ func ValidateClusterConfig(cfg *ClusterConfig) error {
 	if err := validateAddonPodIdentityAssociations(cfg.Addons); err != nil {
 		return err
 	}
+	if err := ValidateAutoModeConfig(cfg); err != nil {
+		return err
+	}
 
 	if len(cfg.AccessConfig.AccessEntries) > 0 {
 		switch cfg.AccessConfig.AuthenticationMode {
@@ -241,17 +307,6 @@ func ValidateClusterConfig(cfg *ClusterConfig) error {
 		return fmt.Errorf("failed to validate Karpenter config: %w", err)
 	}
 
-	return nil
-}
-
-// ValidateClusterVersion validates the cluster version.
-func ValidateClusterVersion(clusterConfig *ClusterConfig) error {
-	if clusterVersion := clusterConfig.Metadata.Version; clusterVersion != "" && clusterVersion != DefaultVersion && !IsSupportedVersion(clusterVersion) {
-		if IsDeprecatedVersion(clusterVersion) {
-			return fmt.Errorf("invalid version, %s is no longer supported, supported values: %s\nsee also: https://docs.aws.amazon.com/eks/latest/userguide/kubernetes-versions.html", clusterVersion, strings.Join(SupportedVersions(), ", "))
-		}
-		return fmt.Errorf("invalid version, supported values: %s", strings.Join(SupportedVersions(), ", "))
-	}
 	return nil
 }
 
@@ -301,7 +356,7 @@ func validateCloudWatchLogging(clusterConfig *ClusterConfig) error {
 			}
 		}
 		if isUnknown {
-			return errors.Errorf("log type %q (cloudWatch.clusterLogging.enableTypes[%d]) is unknown", logType, i)
+			return fmt.Errorf("log type %q (cloudWatch.clusterLogging.enableTypes[%d]) is unknown", logType, i)
 		}
 	}
 	if logRetentionDays := clusterConfig.CloudWatch.ClusterLogging.LogRetentionInDays; logRetentionDays != 0 {
@@ -310,7 +365,7 @@ func validateCloudWatchLogging(clusterConfig *ClusterConfig) error {
 				return nil
 			}
 		}
-		return errors.Errorf("invalid value %d for logRetentionInDays; supported values are %v", logRetentionDays, LogRetentionInDaysValues)
+		return fmt.Errorf("invalid value %d for logRetentionInDays; supported values are %v", logRetentionDays, LogRetentionInDaysValues)
 	}
 
 	return nil
@@ -363,7 +418,7 @@ func (c *ClusterConfig) ValidateVPCConfig() error {
 		return fmt.Errorf("Ipv6Cidr and Ipv6CidrPool are only supported when IPFamily is set to IPv6")
 	}
 
-	if c.IPv6Enabled() {
+	if c.IPv6Enabled() && c.Status == nil {
 		if IsEnabled(c.VPC.AutoAllocateIPv6) {
 			return fmt.Errorf("auto allocate ipv6 is not supported with IPv6")
 		}
@@ -528,6 +583,10 @@ func (c *ClusterConfig) ValidatePrivateCluster() error {
 
 // validateKubernetesNetworkConfig validates the k8s network config
 func (c *ClusterConfig) validateKubernetesNetworkConfig() error {
+	// this check ensured the validation is only run on cluster creation
+	if c.Status != nil {
+		return nil
+	}
 	if c.KubernetesNetworkConfig == nil {
 		return nil
 	}
@@ -537,15 +596,20 @@ func (c *ClusterConfig) validateKubernetesNetworkConfig() error {
 		}
 		serviceIP := c.KubernetesNetworkConfig.ServiceIPv4CIDR
 		if _, _, err := net.ParseCIDR(serviceIP); serviceIP != "" && err != nil {
-			return errors.Wrap(err, "invalid IPv4 CIDR for kubernetesNetworkConfig.serviceIPv4CIDR")
+			return fmt.Errorf("invalid IPv4 CIDR for kubernetesNetworkConfig.serviceIPv4CIDR: %w", err)
 		}
 	}
 
 	switch strings.ToLower(c.KubernetesNetworkConfig.IPFamily) {
 	case strings.ToLower(IPV4Family), "":
 	case strings.ToLower(IPV6Family):
-		if missing := c.addonContainsManagedAddons([]string{VPCCNIAddon, CoreDNSAddon, KubeProxyAddon}); len(missing) != 0 {
-			return fmt.Errorf("the default core addons must be defined for IPv6; missing addon(s): %s", strings.Join(missing, ", "))
+		if !c.IsAutoModeEnabled() {
+			if missing := c.addonContainsManagedAddons([]string{VPCCNIAddon, CoreDNSAddon, KubeProxyAddon}); len(missing) != 0 {
+				return fmt.Errorf("the default core addons must be defined for IPv6; missing addon(s): %s; either define them or use EKS Auto Mode", strings.Join(missing, ", "))
+			}
+			if c.IAM == nil || c.IAM != nil && IsDisabled(c.IAM.WithOIDC) {
+				return fmt.Errorf("oidc needs to be enabled if IPv6 is set; either set it or use EKS Auto Mode")
+			}
 		}
 
 		unsupportedVersion, err := c.unsupportedVPCCNIAddonVersion()
@@ -557,13 +621,9 @@ func (c *ClusterConfig) validateKubernetesNetworkConfig() error {
 			return fmt.Errorf("%s version must be at least version %s for IPv6", VPCCNIAddon, minimumVPCCNIVersionForIPv6)
 		}
 
-		if c.IAM == nil || c.IAM != nil && IsDisabled(c.IAM.WithOIDC) {
-			return fmt.Errorf("oidc needs to be enabled if IPv6 is set")
-		}
-
 		if version, err := utils.CompareVersions(c.Metadata.Version, Version1_21); err != nil {
 			return fmt.Errorf("failed to convert %s cluster version to semver: %w", c.Metadata.Version, err)
-		} else if err == nil && version == -1 {
+		} else if version == -1 {
 			return fmt.Errorf("cluster version must be >= %s", Version1_21)
 		}
 	default:
@@ -661,12 +721,10 @@ func validateNodeGroupBase(np NodePool, path string, controlPlaneOnOutposts bool
 
 	instanceType := SelectInstanceType(np)
 
-	if ng.AMIFamily == NodeImageFamilyAmazonLinux2023 && instanceutils.IsNvidiaInstanceType(instanceType) {
-		return ErrUnsupportedInstanceTypes("GPU", NodeImageFamilyAmazonLinux2023,
-			fmt.Sprintf("EKS accelerated AMIs based on %s will be available at a later date", NodeImageFamilyAmazonLinux2023))
-	}
-
-	if ng.AMIFamily != NodeImageFamilyAmazonLinux2 && ng.AMIFamily != NodeImageFamilyBottlerocket && ng.AMIFamily != "" {
+	if ng.AMIFamily != NodeImageFamilyAmazonLinux2023 &&
+		ng.AMIFamily != NodeImageFamilyAmazonLinux2 &&
+		ng.AMIFamily != NodeImageFamilyBottlerocket &&
+		ng.AMIFamily != "" {
 		if instanceutils.IsNvidiaInstanceType(instanceType) {
 			logger.Warning(GPUDriversWarning(ng.AMIFamily))
 		}
@@ -674,14 +732,21 @@ func validateNodeGroupBase(np NodePool, path string, controlPlaneOnOutposts bool
 			(ng.InstanceSelector.GPUs == nil || *ng.InstanceSelector.GPUs != 0) {
 			logger.Warning("instance selector may/will select GPU instance types, " + GPUDriversWarning(ng.AMIFamily))
 		}
+		if ng.InstanceSelector != nil && !ng.InstanceSelector.IsZero() &&
+			(ng.InstanceSelector.NeuronDevices == nil || *ng.InstanceSelector.NeuronDevices != 0) {
+			logger.Warning("instance selector may/will select Neuron Device instance types, " + NeuronDeviceDriversWarning(ng.AMIFamily))
+		}
 	}
 
-	if ng.AMIFamily != NodeImageFamilyAmazonLinux2 && ng.AMIFamily != "" {
-		// Only AL2 supports Inferentia hosts.
+	if ng.AMIFamily != NodeImageFamilyAmazonLinux2 &&
+		ng.AMIFamily != NodeImageFamilyAmazonLinux2023 &&
+		ng.AMIFamily != NodeImageFamilyBottlerocket &&
+		ng.AMIFamily != "" {
+		// Only AL2, AL2023 and Bottlerocket support Inferentia hosts.
 		if instanceutils.IsInferentiaInstanceType(instanceType) {
 			return ErrUnsupportedInstanceTypes("Inferentia", ng.AMIFamily, fmt.Sprintf("please use %s instead", NodeImageFamilyAmazonLinux2))
 		}
-		// Only AL2 supports Trainium hosts.
+		// Only AL2, AL2023 and Bottlerocket support Trainium hosts.
 		if instanceutils.IsTrainiumInstanceType(instanceType) {
 			return ErrUnsupportedInstanceTypes("Trainium", ng.AMIFamily, fmt.Sprintf("please use %s instead", NodeImageFamilyAmazonLinux2))
 		}
@@ -703,6 +768,18 @@ func validateNodeGroupBase(np NodePool, path string, controlPlaneOnOutposts bool
 				return errors.New("only one of CapacityReservationID or CapacityReservationResourceGroupARN may be specified at a time")
 			}
 		}
+
+		if ng.InstanceMarketOptions != nil {
+			if ng.InstanceMarketOptions.MarketType != nil {
+				if *ng.InstanceMarketOptions.MarketType != "capacity-block" {
+					return fmt.Errorf(`only accepted value is "capacity-block"; got "%s"`, *ng.InstanceMarketOptions.MarketType)
+				}
+			}
+		}
+	} else {
+		if ng.InstanceMarketOptions != nil {
+			return errors.New("instanceMarketOptions cannot be set without capacityReservation")
+		}
 	}
 
 	return nil
@@ -711,13 +788,19 @@ func validateNodeGroupBase(np NodePool, path string, controlPlaneOnOutposts bool
 func validateVolumeOpts(ng *NodeGroupBase, path string, controlPlaneOnOutposts bool) error {
 	if ng.VolumeType != nil {
 		volumeType := *ng.VolumeType
-		if ng.VolumeIOPS != nil && !(volumeType == NodeVolumeTypeIO1 || volumeType == NodeVolumeTypeGP3) {
-			return fmt.Errorf("%s.volumeIOPS is only supported for %s and %s volume types", path, NodeVolumeTypeIO1, NodeVolumeTypeGP3)
+		if ng.VolumeIOPS != nil && !(volumeType == NodeVolumeTypeIO1 || volumeType == NodeVolumeTypeIO2 || volumeType == NodeVolumeTypeGP3) {
+			return fmt.Errorf("%s.volumeIOPS is only supported for %s, %s and %s volume types", path, NodeVolumeTypeIO1, NodeVolumeTypeIO2, NodeVolumeTypeGP3)
 		}
 
 		if volumeType == NodeVolumeTypeIO1 {
 			if ng.VolumeIOPS != nil && !(*ng.VolumeIOPS >= MinIO1Iops && *ng.VolumeIOPS <= MaxIO1Iops) {
 				return fmt.Errorf("value for %s.volumeIOPS must be within range %d-%d", path, MinIO1Iops, MaxIO1Iops)
+			}
+		}
+
+		if volumeType == NodeVolumeTypeIO2 {
+			if ng.VolumeIOPS != nil && !(*ng.VolumeIOPS >= MinIO2Iops && *ng.VolumeIOPS <= MaxIO2Iops) {
+				return fmt.Errorf("value for %s.volumeIOPS must be within range %d-%d", path, MinIO2Iops, MaxIO2Iops)
 			}
 		}
 
@@ -762,7 +845,7 @@ func validateIdentityProvider(idP IdentityProvider) error {
 func validateIdentityProviders(idPs []IdentityProvider) error {
 	for k, idP := range idPs {
 		if err := validateIdentityProvider(idP); err != nil {
-			return errors.Wrapf(err, "identityProviders[%d] is invalid", k)
+			return fmt.Errorf("identityProviders[%d] is invalid: %w", k, err)
 		}
 	}
 	return nil
@@ -819,7 +902,7 @@ func ValidateNodeGroup(i int, ng *NodeGroup, cfg *ClusterConfig) error {
 		if attachPolicyARNs := ng.IAM.AttachPolicyARNs; len(attachPolicyARNs) > 0 {
 			for _, policyARN := range attachPolicyARNs {
 				if _, err := arn.Parse(policyARN); err != nil {
-					return errors.Wrapf(err, "invalid ARN %q in %s.iam.attachPolicyARNs", policyARN, path)
+					return fmt.Errorf("invalid ARN %q in %s.iam.attachPolicyARNs: %w", policyARN, path, err)
 				}
 
 			}
@@ -830,7 +913,7 @@ func ValidateNodeGroup(i int, ng *NodeGroup, cfg *ClusterConfig) error {
 	}
 
 	if ng.AMI != "" && ng.AMIFamily == "" {
-		return errors.Errorf("when using a custom AMI, amiFamily needs to be explicitly set via config file or via --node-ami-family flag")
+		return errors.New("when using a custom AMI, amiFamily needs to be explicitly set via config file or via --node-ami-family flag")
 	}
 
 	if ng.Bottlerocket != nil && ng.AMIFamily != NodeImageFamilyBottlerocket {
@@ -842,7 +925,7 @@ func ValidateNodeGroup(i int, ng *NodeGroup, cfg *ClusterConfig) error {
 		ng.AMIFamily != NodeImageFamilyAmazonLinux2023 &&
 		ng.AMIFamily != NodeImageFamilyBottlerocket &&
 		!IsWindowsImage(ng.AMIFamily) {
-		return errors.Errorf("%[1]s.overrideBootstrapCommand is required when using a custom AMI based on %s (%[1]s.ami)", path, ng.AMIFamily)
+		return fmt.Errorf("%[1]s.overrideBootstrapCommand is required when using a custom AMI based on %s (%[1]s.ami)", path, ng.AMIFamily)
 	}
 
 	if err := validateTaints(ng.Taints); err != nil {
@@ -871,13 +954,6 @@ func ValidateNodeGroup(i int, ng *NodeGroup, cfg *ClusterConfig) error {
 		if ng.KubeletExtraConfig != nil {
 			return fieldNotSupported("kubeletExtraConfig")
 		}
-	} else if ng.AMIFamily == NodeImageFamilyAmazonLinux2023 {
-		if ng.PreBootstrapCommands != nil {
-			return fieldNotSupported("preBootstrapCommands")
-		}
-		if ng.OverrideBootstrapCommand != nil {
-			return fieldNotSupported("overrideBootstrapCommand")
-		}
 	} else if ng.AMIFamily == NodeImageFamilyBottlerocket {
 		if ng.KubeletExtraConfig != nil {
 			return fieldNotSupported("kubeletExtraConfig")
@@ -897,8 +973,8 @@ func ValidateNodeGroup(i int, ng *NodeGroup, cfg *ClusterConfig) error {
 		return err
 	}
 
-	if instanceutils.IsARMGPUInstanceType(SelectInstanceType(ng)) && ng.AMIFamily != NodeImageFamilyBottlerocket {
-		return fmt.Errorf("ARM GPU instance types are not supported for unmanaged nodegroups with AMIFamily %s", ng.AMIFamily)
+	if err := validateInstanceTypeSupport(ng); err != nil {
+		return err
 	}
 
 	if err := validateInstancesDistribution(ng); err != nil {
@@ -926,7 +1002,7 @@ func ValidateNodeGroup(i int, ng *NodeGroup, cfg *ClusterConfig) error {
 				return err
 			}
 			if *ng.ContainerRuntime != ContainerRuntimeContainerD && isDockershimDeprecated {
-				return fmt.Errorf("only %s is supported for container runtime, starting with EKS version %s", ContainerRuntimeContainerD, Version1_24)
+				return fmt.Errorf("only %s is supported for container runtime, starting with EKS version %s", ContainerRuntimeContainerD, DockershimDeprecationVersion)
 			}
 		}
 		if ng.OverrideBootstrapCommand != nil {
@@ -966,6 +1042,23 @@ func ValidateNodeGroup(i int, ng *NodeGroup, cfg *ClusterConfig) error {
 		}
 	}
 
+	return nil
+}
+
+// validateInstanceTypeSupport checks if the provided instance types are
+// supported by the AMIFamily. If a custom AMI is provided then it will skip the
+// validation, as it could be a derivative of a supported family type.
+func validateInstanceTypeSupport(ng *NodeGroup) error {
+	if IsAMI(ng.AMI) {
+		return nil
+	}
+	if instanceutils.IsARMGPUInstanceType(SelectInstanceType(ng)) {
+		switch ng.AMIFamily {
+		case NodeImageFamilyBottlerocket:
+		default:
+			return fmt.Errorf("ARM GPU instance types are not supported for unmanaged nodegroups with AMIFamily %s", ng.AMIFamily)
+		}
+	}
 	return nil
 }
 
@@ -1186,20 +1279,16 @@ func ValidateManagedNodeGroup(index int, ng *ManagedNodeGroup) error {
 	}
 
 	if IsEnabled(ng.SecurityGroups.WithLocal) || IsEnabled(ng.SecurityGroups.WithShared) {
-		return errors.Errorf("securityGroups.withLocal and securityGroups.withShared are not supported for managed nodegroups (%s.securityGroups)", path)
+		return fmt.Errorf("securityGroups.withLocal and securityGroups.withShared are not supported for managed nodegroups (%s.securityGroups)", path)
 	}
 
 	if ng.InstanceType != "" {
 		if len(ng.InstanceTypes) > 0 {
-			return errors.Errorf("only one of instanceType or instanceTypes can be specified (%s)", path)
+			return fmt.Errorf("only one of instanceType or instanceTypes can be specified (%s)", path)
 		}
 		if !ng.InstanceSelector.IsZero() {
-			return errors.Errorf("cannot set instanceType when instanceSelector is specified (%s)", path)
+			return fmt.Errorf("cannot set instanceType when instanceSelector is specified (%s)", path)
 		}
-	}
-
-	if ng.AMIFamily == NodeImageFamilyAmazonLinux2023 && ng.MaxPodsPerNode > 0 {
-		return errors.Errorf("eksctl does not support configuring maxPodsPerNode EKS-managed nodes based on %s", NodeImageFamilyAmazonLinux2023)
 	}
 
 	if ng.AMIFamily == NodeImageFamilyBottlerocket {
@@ -1243,17 +1332,17 @@ func ValidateManagedNodeGroup(index int, ng *ManagedNodeGroup) error {
 	switch {
 	case ng.LaunchTemplate != nil:
 		if ng.LaunchTemplate.ID == "" {
-			return errors.Errorf("launchTemplate.id is required if launchTemplate is set (%s.%s)", path, "launchTemplate")
+			return fmt.Errorf("launchTemplate.id is required if launchTemplate is set (%s.%s)", path, "launchTemplate")
 		}
 
 		if ng.LaunchTemplate.Version != nil {
 			// TODO support `latest` and `default`
 			versionNumber, err := strconv.ParseInt(*ng.LaunchTemplate.Version, 10, 64)
 			if err != nil {
-				return errors.Wrap(err, "invalid launch template version")
+				return fmt.Errorf("invalid launch template version: %w", err)
 			}
 			if versionNumber < 1 {
-				return errors.Errorf("launchTemplate.version must be >= 1 (%s.%s)", path, "launchTemplate.version")
+				return fmt.Errorf("launchTemplate.version must be >= 1 (%s.launchTemplate.version)", path)
 			}
 		}
 
@@ -1267,28 +1356,25 @@ func ValidateManagedNodeGroup(index int, ng *ManagedNodeGroup) error {
 				"volumeSize", "instanceName", "instancePrefix", "maxPodsPerNode", "disableIMDSv1",
 				"disablePodIMDS", "preBootstrapCommands", "overrideBootstrapCommand", "placement",
 			}
-			return errors.Errorf("cannot set %s in managedNodeGroup when a launch template is supplied", strings.Join(incompatibleFields, ", "))
+			return fmt.Errorf("cannot set %s in managedNodeGroup when a launch template is supplied", strings.Join(incompatibleFields, ", "))
 		}
 
 	case ng.AMI != "":
 		if !IsAMI(ng.AMI) {
-			return errors.Errorf("invalid AMI %q (%s.%s)", ng.AMI, path, "ami")
+			return fmt.Errorf("invalid AMI %q (%s.%s)", ng.AMI, path, "ami")
 		}
 		if ng.AMIFamily == "" {
-			return errors.Errorf("when using a custom AMI, amiFamily needs to be explicitly set via config file or via --node-ami-family flag")
+			return errors.New("when using a custom AMI, amiFamily needs to be explicitly set via config file or via --node-ami-family flag")
 		}
 		if !IsAmazonLinuxImage(ng.AMIFamily) && !IsUbuntuImage(ng.AMIFamily) {
-			return errors.Errorf("cannot set amiFamily to %s when using a custom AMI for managed nodes, only %s are supported", ng.AMIFamily,
+			return fmt.Errorf("cannot set amiFamily to %s when using a custom AMI for managed nodes, only %s are supported", ng.AMIFamily,
 				strings.Join(append(SupportedAmazonLinuxImages, SupportedUbuntuImages...), ", "))
 		}
 		if ng.OverrideBootstrapCommand == nil && ng.AMIFamily != NodeImageFamilyAmazonLinux2023 {
-			return errors.Errorf("%[1]s.overrideBootstrapCommand is required when using a custom AMI based on %s (%[1]s.ami)", path, ng.AMIFamily)
-		}
-		if ng.OverrideBootstrapCommand != nil && ng.AMIFamily == NodeImageFamilyAmazonLinux2023 {
-			return errors.Errorf("%[1]s.overrideBootstrapCommand is not supported when using a custom AMI based on %s (%[1]s.ami)", path, ng.AMIFamily)
+			return fmt.Errorf("%[1]s.overrideBootstrapCommand is required when using a custom AMI based on %s (%[1]s.ami)", path, ng.AMIFamily)
 		}
 		notSupportedWithCustomAMIErr := func(field string) error {
-			return errors.Errorf("%s.%s is not supported when using a custom AMI (%s.ami)", path, field, path)
+			return fmt.Errorf("%s.%s is not supported when using a custom AMI (%s.ami)", path, field, path)
 		}
 		if ng.MaxPodsPerNode != 0 {
 			return notSupportedWithCustomAMIErr("maxPodsPerNode")
@@ -1300,8 +1386,8 @@ func ValidateManagedNodeGroup(index int, ng *ManagedNodeGroup) error {
 			return notSupportedWithCustomAMIErr("releaseVersion")
 		}
 
-	case ng.OverrideBootstrapCommand != nil:
-		return errors.Errorf("%s.overrideBootstrapCommand can only be set when a custom AMI (%s.ami) is specified", path, path)
+	case ng.OverrideBootstrapCommand != nil && ng.AMIFamily != NodeImageFamilyAmazonLinux2023:
+		return fmt.Errorf("%s.overrideBootstrapCommand can only be set when a custom AMI (%s.ami) is specified", path, path)
 	}
 
 	return nil
@@ -1324,7 +1410,7 @@ func validateInstancesDistribution(ng *NodeGroup) error {
 
 	if ng.InstanceType != "" && ng.InstanceType != "mixed" {
 		makeError := func(featureStr string) error {
-			return errors.Errorf(`instanceType should be "mixed" or unset when using the %s feature`, featureStr)
+			return fmt.Errorf(`instanceType should be "mixed" or unset when using the %s feature`, featureStr)
 		}
 		if ng.InstancesDistribution != nil {
 			return makeError("instances distribution")
@@ -1509,7 +1595,9 @@ func IsAmazonLinuxImage(imageFamily string) bool {
 
 func IsUbuntuImage(imageFamily string) bool {
 	switch imageFamily {
-	case NodeImageFamilyUbuntuPro2204,
+	case NodeImageFamilyUbuntuPro2404,
+		NodeImageFamilyUbuntu2404,
+		NodeImageFamilyUbuntuPro2204,
 		NodeImageFamilyUbuntu2204,
 		NodeImageFamilyUbuntu2004,
 		NodeImageFamilyUbuntu1804:
@@ -1578,7 +1666,7 @@ func (fp FargateProfile) Validate() error {
 	}
 	for i, selector := range fp.Selectors {
 		if err := selector.Validate(); err != nil {
-			return errors.Wrapf(err, "invalid Fargate profile %q: invalid profile selector at index #%v", fp.Name, i)
+			return fmt.Errorf("invalid Fargate profile %q: invalid profile selector at index #%v: %w", fp.Name, i, err)
 		}
 	}
 	return nil
@@ -1654,7 +1742,7 @@ func ValidateSecretsEncryption(clusterConfig *ClusterConfig) error {
 	}
 
 	if _, err := arn.Parse(clusterConfig.SecretsEncryption.KeyARN); err != nil {
-		return errors.Wrapf(err, "invalid ARN in secretsEncryption.keyARN: %q", clusterConfig.SecretsEncryption.KeyARN)
+		return fmt.Errorf("invalid ARN in secretsEncryption.keyARN: %q: %w", clusterConfig.SecretsEncryption.KeyARN, err)
 	}
 	return nil
 }

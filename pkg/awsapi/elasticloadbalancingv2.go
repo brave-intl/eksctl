@@ -177,6 +177,10 @@ type ELBV2 interface {
 	// [Quotas for your Application Load Balancers]: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-limits.html
 	// [Quotas for your Network Load Balancers]: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-limits.html
 	DescribeAccountLimits(ctx context.Context, params *DescribeAccountLimitsInput, optFns ...func(*Options)) (*DescribeAccountLimitsOutput, error)
+	// Describes the capacity reservation status for the specified load balancer.
+	DescribeCapacityReservation(ctx context.Context, params *DescribeCapacityReservationInput, optFns ...func(*Options)) (*DescribeCapacityReservationOutput, error)
+	// Describes the attributes for the specified listener.
+	DescribeListenerAttributes(ctx context.Context, params *DescribeListenerAttributesInput, optFns ...func(*Options)) (*DescribeListenerAttributesOutput, error)
 	// Describes the default certificate and the certificate list for the specified
 	// HTTPS or TLS listener.
 	//
@@ -265,6 +269,13 @@ type ELBV2 interface {
 	//
 	// This action returns a pre-signed S3 URI which is active for ten minutes.
 	GetTrustStoreRevocationContent(ctx context.Context, params *GetTrustStoreRevocationContentInput, optFns ...func(*Options)) (*GetTrustStoreRevocationContentOutput, error)
+	// Modifies the capacity reservation of the specified load balancer.
+	//
+	// When modifying capacity reservation, you must include at least one
+	// MinimumLoadBalancerCapacity or ResetCapacityReservation .
+	ModifyCapacityReservation(ctx context.Context, params *ModifyCapacityReservationInput, optFns ...func(*Options)) (*ModifyCapacityReservationOutput, error)
+	// [Application Load Balancers] Modify the IP pool associated to a load balancer.
+	ModifyIpPools(ctx context.Context, params *ModifyIpPoolsInput, optFns ...func(*Options)) (*ModifyIpPoolsOutput, error)
 	// Replaces the specified properties of the specified listener. Any properties
 	// that you do not specify remain unchanged.
 	//
@@ -277,6 +288,8 @@ type ELBV2 interface {
 	// list, you must provide the entire list. For example, to add an action, specify a
 	// list with the current actions plus the new action.
 	ModifyListener(ctx context.Context, params *ModifyListenerInput, optFns ...func(*Options)) (*ModifyListenerOutput, error)
+	// Modifies the specified attributes of the specified listener.
+	ModifyListenerAttributes(ctx context.Context, params *ModifyListenerAttributesInput, optFns ...func(*Options)) (*ModifyListenerAttributesOutput, error)
 	// Modifies the specified attributes of the specified Application Load Balancer,
 	// Network Load Balancer, or Gateway Load Balancer.
 	//
@@ -308,7 +321,7 @@ type ELBV2 interface {
 	// for a target when you register it. You can register each EC2 instance or IP
 	// address with the same target group multiple times using different ports.
 	//
-	// With a Network Load Balancer, you cannot register instances by instance ID if
+	// With a Network Load Balancer, you can't register instances by instance ID if
 	// they have the following instance types: C1, CC1, CC2, CG1, CG2, CR1, CS1, G1,
 	// G2, HI1, HS1, M1, M2, M3, and T1. You can register instances of these types by
 	// IP address.

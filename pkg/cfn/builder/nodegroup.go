@@ -2,19 +2,19 @@ package builder
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/pkg/errors"
 	"k8s.io/utils/strings/slices"
 
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 
-	gfn "github.com/weaveworks/goformation/v4/cloudformation"
-	gfncfn "github.com/weaveworks/goformation/v4/cloudformation/cloudformation"
-	gfnec2 "github.com/weaveworks/goformation/v4/cloudformation/ec2"
-	gfneks "github.com/weaveworks/goformation/v4/cloudformation/eks"
-	gfnt "github.com/weaveworks/goformation/v4/cloudformation/types"
+	gfn "github.com/weaveworks/eksctl/pkg/goformation/cloudformation"
+	gfncfn "github.com/weaveworks/eksctl/pkg/goformation/cloudformation/cloudformation"
+	gfnec2 "github.com/weaveworks/eksctl/pkg/goformation/cloudformation/ec2"
+	gfneks "github.com/weaveworks/eksctl/pkg/goformation/cloudformation/eks"
+	gfnt "github.com/weaveworks/eksctl/pkg/goformation/cloudformation/types"
 
 	"github.com/kris-nova/logger"
 
@@ -176,11 +176,17 @@ func (n *NodeGroupResourceSet) addAccessEntry() {
 		return
 	}
 
-	n.newResource("AccessEntry", &gfneks.AccessEntry{
-		PrincipalArn: gfnt.MakeFnGetAttString(cfnIAMInstanceRoleName, "Arn"),
-		ClusterName:  gfnt.NewString(n.options.ClusterConfig.Metadata.Name),
-		Type:         gfnt.NewString(string(api.GetAccessEntryType(n.options.NodeGroup))),
-	})
+	if n.options.ClusterConfig.IsCustomEksEndpoint() {
+		n.newResource("AccessEntry",
+			addBetaAccessEntry(n.options.ClusterConfig.Metadata.Name,
+				string(api.GetAccessEntryType(n.options.NodeGroup))))
+	} else {
+		n.newResource("AccessEntry", &gfneks.AccessEntry{
+			PrincipalArn: gfnt.MakeFnGetAttString(cfnIAMInstanceRoleName, "Arn"),
+			ClusterName:  gfnt.NewString(n.options.ClusterConfig.Metadata.Name),
+			Type:         gfnt.NewString(string(api.GetAccessEntryType(n.options.NodeGroup))),
+		})
+	}
 }
 
 func (n *NodeGroupResourceSet) addResourcesForSecurityGroups() {
@@ -285,7 +291,7 @@ func (n *NodeGroupResourceSet) addResourcesForNodeGroup(ctx context.Context) err
 	launchTemplateName := gfnt.MakeFnSubString(fmt.Sprintf("${%s}", gfnt.StackName))
 	launchTemplateData, err := newLaunchTemplateData(ctx, n)
 	if err != nil {
-		return errors.Wrap(err, "could not add resources for nodegroup")
+		return fmt.Errorf("could not add resources for nodegroup: %w", err)
 	}
 
 	ng := n.options.NodeGroup
@@ -453,7 +459,7 @@ func newLaunchTemplateData(ctx context.Context, n *NodeGroupResourceSet) (*gfnec
 		UserData:          gfnt.NewString(userData),
 		MetadataOptions:   makeMetadataOptions(ng.NodeGroupBase),
 		TagSpecifications: makeTags(ng.NodeGroupBase, n.options.ClusterConfig.Metadata),
-        EnclaveOptions: &gfnec2.LaunchTemplate_EnclaveOptions{
+		EnclaveOptions: &gfnec2.LaunchTemplate_EnclaveOptions{
 			Enabled: gfnt.NewBoolean(ng.EnclaveEnabled),
 		},
 	}
@@ -473,10 +479,15 @@ func newLaunchTemplateData(ctx context.Context, n *NodeGroupResourceSet) (*gfnec
 				CapacityReservationResourceGroupArn: valueOrNil(ng.CapacityReservation.CapacityReservationTarget.CapacityReservationResourceGroupARN),
 			}
 		}
+		if ng.InstanceMarketOptions != nil {
+			launchTemplateData.InstanceMarketOptions = &gfnec2.LaunchTemplate_InstanceMarketOptions{
+				MarketType: valueOrNil(ng.InstanceMarketOptions.MarketType),
+			}
+		}
 	}
 
 	if err := buildNetworkInterfaces(ctx, launchTemplateData, ng.InstanceTypeList(), api.IsEnabled(ng.EFAEnabled), n.securityGroups, n.ec2API); err != nil {
-		return nil, errors.Wrap(err, "couldn't build network interfaces for launch template data")
+		return nil, fmt.Errorf("couldn't build network interfaces for launch template data: %w", err)
 	}
 
 	if api.IsEnabled(ng.EFAEnabled) && ng.Placement == nil {

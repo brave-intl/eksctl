@@ -54,8 +54,7 @@ type SSM interface {
 	AddTagsToResource(ctx context.Context, params *AddTagsToResourceInput, optFns ...func(*Options)) (*AddTagsToResourceOutput, error)
 	// Associates a related item to a Systems Manager OpsCenter OpsItem. For example,
 	// you can associate an Incident Manager incident or analysis with an OpsItem.
-	// Incident Manager and OpsCenter are capabilities of Amazon Web Services Systems
-	// Manager.
+	// Incident Manager and OpsCenter are tools in Amazon Web Services Systems Manager.
 	AssociateOpsItemRelatedItem(ctx context.Context, params *AssociateOpsItemRelatedItemInput, optFns ...func(*Options)) (*AssociateOpsItemRelatedItemOutput, error)
 	// Attempts to cancel the command specified by the Command ID. There is no
 	// guarantee that the command will be terminated and the underlying process
@@ -68,17 +67,16 @@ type SSM interface {
 	// Generates an activation code and activation ID you can use to register your
 	// on-premises servers, edge devices, or virtual machine (VM) with Amazon Web
 	// Services Systems Manager. Registering these machines with Systems Manager makes
-	// it possible to manage them using Systems Manager capabilities. You use the
-	// activation code and ID when installing SSM Agent on machines in your hybrid
-	// environment. For more information about requirements for managing on-premises
-	// machines using Systems Manager, see [Setting up Amazon Web Services Systems Manager for hybrid and multicloud environments]in the Amazon Web Services Systems Manager
-	// User Guide.
+	// it possible to manage them using Systems Manager tools. You use the activation
+	// code and ID when installing SSM Agent on machines in your hybrid environment.
+	// For more information about requirements for managing on-premises machines using
+	// Systems Manager, see [Using Amazon Web Services Systems Manager in hybrid and multicloud environments]in the Amazon Web Services Systems Manager User Guide.
 	//
 	// Amazon Elastic Compute Cloud (Amazon EC2) instances, edge devices, and
 	// on-premises servers and VMs that are configured for Systems Manager are all
 	// called managed nodes.
 	//
-	// [Setting up Amazon Web Services Systems Manager for hybrid and multicloud environments]: https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-managedinstances.html
+	// [Using Amazon Web Services Systems Manager in hybrid and multicloud environments]: https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-hybrid-multicloud.html
 	CreateActivation(ctx context.Context, params *CreateActivationInput, optFns ...func(*Options)) (*CreateActivationOutput, error)
 	// A State Manager association defines the state that you want to maintain on your
 	// managed nodes. For example, an association can specify that anti-virus software
@@ -86,11 +84,11 @@ type SSM interface {
 	// be closed. For static targets, the association specifies a schedule for when the
 	// configuration is reapplied. For dynamic targets, such as an Amazon Web Services
 	// resource group or an Amazon Web Services autoscaling group, State Manager, a
-	// capability of Amazon Web Services Systems Manager applies the configuration when
-	// new managed nodes are added to the group. The association also specifies actions
-	// to take when applying the configuration. For example, an association for
-	// anti-virus software might run once a day. If the software isn't installed, then
-	// State Manager installs it. If the software is installed, but the service isn't
+	// tool in Amazon Web Services Systems Manager applies the configuration when new
+	// managed nodes are added to the group. The association also specifies actions to
+	// take when applying the configuration. For example, an association for anti-virus
+	// software might run once a day. If the software isn't installed, then State
+	// Manager installs it. If the software is installed, but the service isn't
 	// running, then the association might instruct State Manager to start the service.
 	CreateAssociation(ctx context.Context, params *CreateAssociationInput, optFns ...func(*Options)) (*CreateAssociationOutput, error)
 	// Associates the specified Amazon Web Services Systems Manager document (SSM
@@ -109,7 +107,7 @@ type SSM interface {
 	// schemas, features, and syntax, see [Amazon Web Services Systems Manager Documents]in the Amazon Web Services Systems Manager
 	// User Guide.
 	//
-	// [Amazon Web Services Systems Manager Documents]: https://docs.aws.amazon.com/systems-manager/latest/userguide/sysman-ssm-docs.html
+	// [Amazon Web Services Systems Manager Documents]: https://docs.aws.amazon.com/systems-manager/latest/userguide/documents.html
 	CreateDocument(ctx context.Context, params *CreateDocumentInput, optFns ...func(*Options)) (*CreateDocumentOutput, error)
 	// Creates a new maintenance window.
 	//
@@ -148,7 +146,7 @@ type SSM interface {
 	// You can configure Systems Manager Inventory to use the SyncToDestination type
 	// to synchronize Inventory data from multiple Amazon Web Services Regions to a
 	// single Amazon Simple Storage Service (Amazon S3) bucket. For more information,
-	// see [Configuring resource data sync for Inventory]in the Amazon Web Services Systems Manager User Guide.
+	// see [Creating a resource data sync for Inventory]in the Amazon Web Services Systems Manager User Guide.
 	//
 	// You can configure Systems Manager Explorer to use the SyncFromSource type to
 	// synchronize operational work items (OpsItems) and operational data (OpsData)
@@ -168,7 +166,7 @@ type SSM interface {
 	// policy.
 	//
 	// [Setting up Systems Manager Explorer to display data from multiple accounts and Regions]: https://docs.aws.amazon.com/systems-manager/latest/userguide/Explorer-resource-data-sync.html
-	// [Configuring resource data sync for Inventory]: https://docs.aws.amazon.com/systems-manager/latest/userguide/sysman-inventory-datasync.html
+	// [Creating a resource data sync for Inventory]: https://docs.aws.amazon.com/systems-manager/latest/userguide/inventory-create-resource-data-sync.html
 	CreateResourceDataSync(ctx context.Context, params *CreateResourceDataSyncInput, optFns ...func(*Options)) (*CreateResourceDataSyncOutput, error)
 	// Deletes an activation. You aren't required to delete an activation. If you
 	// delete an activation, you can no longer use it to register additional managed
@@ -252,9 +250,15 @@ type SSM interface {
 	//
 	// [Working with shared parameters]: https://docs.aws.amazon.com/systems-manager/latest/userguide/parameter-store-shared-parameters.html
 	DeleteResourcePolicy(ctx context.Context, params *DeleteResourcePolicyInput, optFns ...func(*Options)) (*DeleteResourcePolicyOutput, error)
-	// Removes the server or virtual machine from the list of registered servers. You
-	// can reregister the node again at any time. If you don't plan to use Run Command
-	// on the server, we suggest uninstalling SSM Agent first.
+	// Removes the server or virtual machine from the list of registered servers.
+	//
+	// If you want to reregister an on-premises server, edge device, or VM, you must
+	// use a different Activation Code and Activation ID than used to register the
+	// machine previously. The Activation Code and Activation ID must not have already
+	// been used on the maximum number of activations specified when they were created.
+	// For more information, see [Deregistering managed nodes in a hybrid and multicloud environment]in the Amazon Web Services Systems Manager User Guide.
+	//
+	// [Deregistering managed nodes in a hybrid and multicloud environment]: https://docs.aws.amazon.com/systems-manager/latest/userguide/fleet-manager-deregister-hybrid-nodes.html
 	DeregisterManagedInstance(ctx context.Context, params *DeregisterManagedInstanceInput, optFns ...func(*Options)) (*DeregisterManagedInstanceOutput, error)
 	// Removes a patch group from a patch baseline.
 	DeregisterPatchBaselineForPatchGroup(ctx context.Context, params *DeregisterPatchBaselineForPatchGroupInput, optFns ...func(*Options)) (*DeregisterPatchBaselineForPatchGroupOutput, error)
@@ -310,9 +314,9 @@ type SSM interface {
 	// all your managed nodes. If you specify a node ID that isn't valid or a node that
 	// you don't own, you receive an error.
 	//
-	// The IamRole field returned for this API operation is the Identity and Access
-	// Management (IAM) role assigned to on-premises managed nodes. This operation does
-	// not return the IAM role for EC2 instances.
+	// The IamRole field returned for this API operation is the role assigned to an
+	// Amazon EC2 instance configured with a Systems Manager Quick Setup host
+	// management configuration or the role assigned to an on-premises managed node.
 	DescribeInstanceInformation(ctx context.Context, params *DescribeInstanceInformationInput, optFns ...func(*Options)) (*DescribeInstanceInformationOutput, error)
 	// Retrieves the high-level patch state of one or more managed nodes.
 	DescribeInstancePatchStates(ctx context.Context, params *DescribeInstancePatchStatesInput, optFns ...func(*Options)) (*DescribeInstancePatchStatesOutput, error)
@@ -401,6 +405,8 @@ type SSM interface {
 	//
 	// AMAZON_LINUX_2 Valid properties: PRODUCT | CLASSIFICATION | SEVERITY
 	//
+	// AMAZON_LINUX_2023 Valid properties: PRODUCT | CLASSIFICATION | SEVERITY
+	//
 	// CENTOS Valid properties: PRODUCT | CLASSIFICATION | SEVERITY
 	//
 	// DEBIAN Valid properties: PRODUCT | PRIORITY
@@ -423,7 +429,7 @@ type SSM interface {
 	DescribeSessions(ctx context.Context, params *DescribeSessionsInput, optFns ...func(*Options)) (*DescribeSessionsOutput, error)
 	// Deletes the association between an OpsItem and a related item. For example,
 	// this API operation can delete an Incident Manager incident from an OpsItem.
-	// Incident Manager is a capability of Amazon Web Services Systems Manager.
+	// Incident Manager is a tool in Amazon Web Services Systems Manager.
 	DisassociateOpsItemRelatedItem(ctx context.Context, params *DisassociateOpsItemRelatedItemInput, optFns ...func(*Options)) (*DisassociateOpsItemRelatedItemOutput, error)
 	// Get detailed information about a particular Automation execution.
 	GetAutomationExecution(ctx context.Context, params *GetAutomationExecutionInput, optFns ...func(*Options)) (*GetAutomationExecutionOutput, error)
@@ -438,13 +444,17 @@ type SSM interface {
 	// status of OPEN only if all calendars in the request are open. If one or more
 	// calendars in the request are closed, the status returned is CLOSED .
 	//
-	// For more information about Change Calendar, a capability of Amazon Web Services
+	// For more information about Change Calendar, a tool in Amazon Web Services
 	// Systems Manager, see [Amazon Web Services Systems Manager Change Calendar]in the Amazon Web Services Systems Manager User Guide.
 	//
 	// [Amazon Web Services Systems Manager Change Calendar]: https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-change-calendar.html
 	GetCalendarState(ctx context.Context, params *GetCalendarStateInput, optFns ...func(*Options)) (*GetCalendarStateOutput, error)
 	// Returns detailed information about command execution for an invocation or
-	// plugin.
+	// plugin. The Run Command API follows an eventual consistency model, due to the
+	// distributed nature of the system supporting the API. This means that the result
+	// of an API command you run that affects your resources might not be immediately
+	// visible to all subsequent commands you run. You should keep this in mind when
+	// you carry out an API command that immediately follows a previous API command.
 	//
 	// GetCommandInvocation only gives the execution status of a plugin in a document.
 	// To get the command execution status on a specific managed node, use ListCommandInvocations. To get
@@ -467,14 +477,18 @@ type SSM interface {
 	// If you run the command locally, such as with the Command Line Interface (CLI),
 	// the system attempts to use your local Amazon Web Services credentials and the
 	// operation fails. To avoid this, you can run the command in the Amazon Web
-	// Services Systems Manager console. Use Run Command, a capability of Amazon Web
-	// Services Systems Manager, with an SSM document that enables you to target a
-	// managed node with a script or command. For example, run the command using the
+	// Services Systems Manager console. Use Run Command, a tool in Amazon Web Services
+	// Systems Manager, with an SSM document that enables you to target a managed node
+	// with a script or command. For example, run the command using the
 	// AWS-RunShellScript document or the AWS-RunPowerShellScript document.
 	GetDeployablePatchSnapshotForInstance(ctx context.Context, params *GetDeployablePatchSnapshotForInstanceInput, optFns ...func(*Options)) (*GetDeployablePatchSnapshotForInstanceOutput, error)
 	// Gets the contents of the specified Amazon Web Services Systems Manager document
 	// (SSM document).
 	GetDocument(ctx context.Context, params *GetDocumentInput, optFns ...func(*Options)) (*GetDocumentOutput, error)
+	// Initiates the process of retrieving an existing preview that shows the effects
+	// that running a specified Automation runbook would have on the targeted
+	// resources.
+	GetExecutionPreview(ctx context.Context, params *GetExecutionPreviewInput, optFns ...func(*Options)) (*GetExecutionPreviewOutput, error)
 	// Query inventory information. This includes managed node status, such as Stopped
 	// or Terminated .
 	GetInventory(ctx context.Context, params *GetInventoryInput, optFns ...func(*Options)) (*GetInventoryOutput, error)
@@ -535,7 +549,8 @@ type SSM interface {
 	//
 	// To get information about a single parameter, you can use the GetParameter operation instead.
 	GetParameters(ctx context.Context, params *GetParametersInput, optFns ...func(*Options)) (*GetParametersOutput, error)
-	// Retrieve information about one or more parameters in a specific hierarchy.
+	// Retrieve information about one or more parameters under a specified level in a
+	// hierarchy.
 	//
 	// Request results are returned on a best-effort basis. If you specify MaxResults
 	// in the request, the response includes information up to the limit specified. The
@@ -604,7 +619,7 @@ type SSM interface {
 	// Returns all State Manager associations in the current Amazon Web Services
 	// account and Amazon Web Services Region. You can limit the results to a specific
 	// State Manager association document or managed node by specifying a filter. State
-	// Manager is a capability of Amazon Web Services Systems Manager.
+	// Manager is a tool in Amazon Web Services Systems Manager.
 	ListAssociations(ctx context.Context, params *ListAssociationsInput, optFns ...func(*Options)) (*ListAssociationsOutput, error)
 	// An invocation is copy of a command sent to a specific managed node. A command
 	// can apply to one or more managed nodes. A command invocation applies to one
@@ -635,12 +650,19 @@ type SSM interface {
 	ListDocuments(ctx context.Context, params *ListDocumentsInput, optFns ...func(*Options)) (*ListDocumentsOutput, error)
 	// A list of inventory items returned by the request.
 	ListInventoryEntries(ctx context.Context, params *ListInventoryEntriesInput, optFns ...func(*Options)) (*ListInventoryEntriesOutput, error)
+	// Takes in filters and returns a list of managed nodes matching the filter
+	// criteria.
+	ListNodes(ctx context.Context, params *ListNodesInput, optFns ...func(*Options)) (*ListNodesOutput, error)
+	// Generates a summary of managed instance/node metadata based on the filters and
+	// aggregators you specify. Results are grouped by the input aggregator you
+	// specify.
+	ListNodesSummary(ctx context.Context, params *ListNodesSummaryInput, optFns ...func(*Options)) (*ListNodesSummaryOutput, error)
 	// Returns a list of all OpsItem events in the current Amazon Web Services Region
 	// and Amazon Web Services account. You can limit the results to events associated
 	// with specific OpsItems by specifying a filter.
 	ListOpsItemEvents(ctx context.Context, params *ListOpsItemEventsInput, optFns ...func(*Options)) (*ListOpsItemEventsOutput, error)
 	// Lists all related-item resources associated with a Systems Manager OpsCenter
-	// OpsItem. OpsCenter is a capability of Amazon Web Services Systems Manager.
+	// OpsItem. OpsCenter is a tool in Amazon Web Services Systems Manager.
 	ListOpsItemRelatedItems(ctx context.Context, params *ListOpsItemRelatedItemsInput, optFns ...func(*Options)) (*ListOpsItemRelatedItemsOutput, error)
 	// Amazon Web Services Systems Manager calls this API operation when displaying
 	// all Application Manager OpsMetadata objects or blobs.
@@ -716,7 +738,7 @@ type SSM interface {
 	// adds an inventory item, if it doesn't already exist, or updates an inventory
 	// item, if it does exist.
 	PutInventory(ctx context.Context, params *PutInventoryInput, optFns ...func(*Options)) (*PutInventoryOutput, error)
-	// Add a parameter to the system.
+	// Create or update a parameter in Parameter Store.
 	PutParameter(ctx context.Context, params *PutParameterInput, optFns ...func(*Options)) (*PutParameterOutput, error)
 	// Creates or updates a Systems Manager resource policy. A resource policy helps
 	// you to define the IAM entity (for example, an Amazon Web Services account) that
@@ -815,6 +837,9 @@ type SSM interface {
 	// in the change request run only after all required approvals for the change
 	// request have been received.
 	StartChangeRequestExecution(ctx context.Context, params *StartChangeRequestExecutionInput, optFns ...func(*Options)) (*StartChangeRequestExecutionOutput, error)
+	// Initiates the process of creating a preview showing the effects that running a
+	// specified Automation runbook would have on the targeted resources.
+	StartExecutionPreview(ctx context.Context, params *StartExecutionPreviewInput, optFns ...func(*Options)) (*StartExecutionPreviewOutput, error)
 	// Initiates a connection to a target (for example, a managed node) for a Session
 	// Manager session. Returns a URL and token that can be used to open a WebSocket
 	// connection for sending input and receiving outputs.

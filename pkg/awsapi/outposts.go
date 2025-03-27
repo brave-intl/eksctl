@@ -62,6 +62,9 @@ type Outposts interface {
 	GetSite(ctx context.Context, params *GetSiteInput, optFns ...func(*Options)) (*GetSiteOutput, error)
 	// Gets the site address of the specified site.
 	GetSiteAddress(ctx context.Context, params *GetSiteAddressInput, optFns ...func(*Options)) (*GetSiteAddressOutput, error)
+	// A list of Amazon EC2 instances, belonging to all accounts, running on the
+	// specified Outpost. Does not include Amazon EBS or Amazon S3 instances.
+	ListAssetInstances(ctx context.Context, params *ListAssetInstancesInput, optFns ...func(*Options)) (*ListAssetInstancesOutput, error)
 	// Lists the hardware assets for the specified Outpost.
 	//
 	// Use filters to return specific results. If you specify multiple filters, the
@@ -69,6 +72,10 @@ type Outposts interface {
 	// a filter where you can specify multiple values, the results include items that
 	// match any of the values that you specify for the filter.
 	ListAssets(ctx context.Context, params *ListAssetsInput, optFns ...func(*Options)) (*ListAssetsOutput, error)
+	// A list of Amazon EC2 instances running on the Outpost and belonging to the
+	// account that initiated the capacity task. Use this list to specify the instances
+	// you cannot stop to free up capacity to run the capacity task.
+	ListBlockingInstancesForCapacityTask(ctx context.Context, params *ListBlockingInstancesForCapacityTaskInput, optFns ...func(*Options)) (*ListBlockingInstancesForCapacityTaskOutput, error)
 	// Lists the capacity tasks for your Amazon Web Services account.
 	//
 	// Use filters to return specific results. If you specify multiple filters, the
@@ -103,7 +110,7 @@ type Outposts interface {
 	// Lists the tags for the specified resource.
 	ListTagsForResource(ctx context.Context, params *ListTagsForResourceInput, optFns ...func(*Options)) (*ListTagsForResourceOutput, error)
 	// Starts the specified capacity task. You can have one active capacity task for
-	// an order.
+	// each order and each Outpost.
 	StartCapacityTask(ctx context.Context, params *StartCapacityTaskInput, optFns ...func(*Options)) (*StartCapacityTaskOutput, error)
 	//	Amazon Web Services uses this action to install Outpost servers.
 	//

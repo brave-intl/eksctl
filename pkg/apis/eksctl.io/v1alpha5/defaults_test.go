@@ -302,7 +302,7 @@ var _ = Describe("ClusterConfig validation", func() {
 				testNodeGroup := NodeGroup{
 					NodeGroupBase: &NodeGroupBase{},
 				}
-				SetNodeGroupDefaults(&testNodeGroup, &ClusterMeta{Version: Version1_24}, false)
+				SetNodeGroupDefaults(&testNodeGroup, &ClusterMeta{Version: DockershimDeprecationVersion}, false)
 				Expect(*testNodeGroup.ContainerRuntime).To(Equal(ContainerRuntimeContainerD))
 			})
 		})
@@ -370,6 +370,14 @@ var _ = Describe("ClusterConfig validation", func() {
 			cfg = NewClusterConfig()
 		})
 
+		Describe("RemoteNetworkConfig", func() {
+			It("should set default credentials provider to SSM", func() {
+				cfg.RemoteNetworkConfig = &RemoteNetworkConfig{}
+				SetClusterConfigDefaults(cfg)
+				Expect(*cfg.RemoteNetworkConfig.IAM.Provider).To(Equal(SSMProvider))
+			})
+		})
+
 		Describe("SetDefaultFargateProfile", func() {
 			It("should create a default Fargate profile with two selectors matching default and kube-system w/o any label", func() {
 				Expect(cfg.FargateProfiles).To(HaveLen(0))
@@ -392,6 +400,7 @@ var _ = Describe("ClusterConfig validation", func() {
 			}, false)
 			Expect(mng.AMIFamily).To(Equal(expectedAMIFamily))
 		},
+			Entry("EKS 1.31 uses AL2023", "1.31", NodeImageFamilyAmazonLinux2023),
 			Entry("EKS 1.30 uses AL2023", "1.30", NodeImageFamilyAmazonLinux2023),
 			Entry("EKS 1.29 uses AL2", "1.29", NodeImageFamilyAmazonLinux2),
 			Entry("EKS 1.28 uses AL2", "1.28", NodeImageFamilyAmazonLinux2),

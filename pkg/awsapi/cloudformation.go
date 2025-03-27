@@ -22,22 +22,19 @@ type CloudFormation interface {
 	// create and manage StackSets for your organization.
 	ActivateOrganizationsAccess(ctx context.Context, params *ActivateOrganizationsAccessInput, optFns ...func(*Options)) (*ActivateOrganizationsAccessOutput, error)
 	// Activates a public third-party extension, making it available for use in stack
-	// templates. For more information, see [Using public extensions]in the CloudFormation User Guide.
-	//
-	// Once you have activated a public third-party extension in your account and
-	// Region, use [SetTypeConfiguration]to specify configuration properties for the extension. For more
-	// information, see [Configuring extensions at the account level]in the CloudFormation User Guide.
+	// templates. Once you have activated a public third-party extension in your
+	// account and Region, use [SetTypeConfiguration]to specify configuration properties for the extension.
+	// For more information, see [Using public extensions]in the CloudFormation User Guide.
 	//
 	// [SetTypeConfiguration]: https://docs.aws.amazon.com/AWSCloudFormation/latest/APIReference/API_SetTypeConfiguration.html
 	// [Using public extensions]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/registry-public.html
-	// [Configuring extensions at the account level]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/registry-private.html#registry-set-configuration
 	ActivateType(ctx context.Context, params *ActivateTypeInput, optFns ...func(*Options)) (*ActivateTypeOutput, error)
 	// Returns configuration data for the specified CloudFormation extensions, from
 	// the CloudFormation registry for the account and Region.
 	//
-	// For more information, see [Configuring extensions at the account level] in the CloudFormation User Guide.
+	// For more information, see [Edit configuration data for extensions in your account] in the CloudFormation User Guide.
 	//
-	// [Configuring extensions at the account level]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/registry-private.html#registry-set-configuration
+	// [Edit configuration data for extensions in your account]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/registry-set-configuration.html
 	BatchDescribeTypeConfigurations(ctx context.Context, params *BatchDescribeTypeConfigurationsInput, optFns ...func(*Options)) (*BatchDescribeTypeConfigurationsOutput, error)
 	// Cancels an update on the specified stack. If the call completes successfully,
 	// the stack rolls back the update and reverts to the previous stack configuration.
@@ -91,12 +88,20 @@ type CloudFormation interface {
 	// Creates a stack as specified in the template. After the call completes
 	// successfully, the stack creation starts. You can check the status of the stack
 	// through the DescribeStacksoperation.
+	//
+	// For more information about creating a stack and monitoring stack progress, see [Managing Amazon Web Services resources as a single unit with CloudFormation stacks]
+	// in the CloudFormation User Guide.
+	//
+	// [Managing Amazon Web Services resources as a single unit with CloudFormation stacks]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stacks.html
 	CreateStack(ctx context.Context, params *CreateStackInput, optFns ...func(*Options)) (*CreateStackOutput, error)
 	// Creates stack instances for the specified accounts, within the specified Amazon
 	// Web Services Regions. A stack instance refers to a stack in a specific account
 	// and Region. You must specify at least one value for either Accounts or
 	// DeploymentTargets , and you must specify at least one value for Regions .
 	CreateStackInstances(ctx context.Context, params *CreateStackInstancesInput, optFns ...func(*Options)) (*CreateStackInstancesOutput, error)
+	// Creates a refactor across multiple stacks, with the list of stacks and
+	// resources that are affected.
+	CreateStackRefactor(ctx context.Context, params *CreateStackRefactorInput, optFns ...func(*Options)) (*CreateStackRefactorOutput, error)
 	// Creates a stack set.
 	CreateStackSet(ctx context.Context, params *CreateStackSetInput, optFns ...func(*Options)) (*CreateStackSetOutput, error)
 	// Deactivates trusted access with Organizations. If trusted access is
@@ -128,6 +133,11 @@ type CloudFormation interface {
 	// Deletes a specified stack. Once the call completes successfully, stack deletion
 	// starts. Deleted stacks don't show up in the DescribeStacksoperation if the deletion has been
 	// completed successfully.
+	//
+	// For more information about deleting a stack, see [Delete a stack from the CloudFormation console] in the CloudFormation User
+	// Guide.
+	//
+	// [Delete a stack from the CloudFormation console]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-console-delete-stack.html
 	DeleteStack(ctx context.Context, params *DeleteStackInput, optFns ...func(*Options)) (*DeleteStackOutput, error)
 	// Deletes stack instances for the specified accounts, in the specified Amazon Web
 	// Services Regions.
@@ -156,15 +166,15 @@ type CloudFormation interface {
 	DeregisterType(ctx context.Context, params *DeregisterTypeInput, optFns ...func(*Options)) (*DeregisterTypeOutput, error)
 	// Retrieves your account's CloudFormation limits, such as the maximum number of
 	// stacks that you can create in your account. For more information about account
-	// limits, see [CloudFormation Quotas]in the CloudFormation User Guide.
+	// limits, see [Understand CloudFormation quotas]in the CloudFormation User Guide.
 	//
-	// [CloudFormation Quotas]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cloudformation-limits.html
+	// [Understand CloudFormation quotas]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cloudformation-limits.html
 	DescribeAccountLimits(ctx context.Context, params *DescribeAccountLimitsInput, optFns ...func(*Options)) (*DescribeAccountLimitsOutput, error)
 	// Returns the inputs for the change set and a list of changes that CloudFormation
-	// will make if you execute the change set. For more information, see [Updating Stacks Using Change Sets]in the
+	// will make if you execute the change set. For more information, see [Update CloudFormation stacks using change sets]in the
 	// CloudFormation User Guide.
 	//
-	// [Updating Stacks Using Change Sets]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-updating-stacks-changesets.html
+	// [Update CloudFormation stacks using change sets]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-updating-stacks-changesets.html
 	DescribeChangeSet(ctx context.Context, params *DescribeChangeSetInput, optFns ...func(*Options)) (*DescribeChangeSetOutput, error)
 	// Returns hook-related information for the change set and a list of changes that
 	// CloudFormation makes when you run the change set.
@@ -190,7 +200,7 @@ type CloudFormation interface {
 	// [RegisterPublisher]
 	//
 	// [Publishing extensions to make them available for public use]
-	//   - in the CloudFormation CLI User Guide
+	//   - in the CloudFormation Command Line Interface (CLI) User Guide
 	//
 	// [Publishing extensions to make them available for public use]: https://docs.aws.amazon.com/cloudformation-cli/latest/userguide/publish-extension.html
 	// [RegisterPublisher]: https://docs.aws.amazon.com/AWSCloudFormation/latest/APIReference/API_RegisterPublisher.html
@@ -202,23 +212,23 @@ type CloudFormation interface {
 	// has drifted, from its expected configuration, as defined in the stack template
 	// and any values specified as template parameters. A stack is considered to have
 	// drifted if one or more of its resources have drifted. For more information about
-	// stack and resource drift, see [Detecting Unregulated Configuration Changes to Stacks and Resources].
+	// stack and resource drift, see [Detect unmanaged configuration changes to stacks and resources with drift detection].
 	//
 	// Use DetectStackDrift to initiate a stack drift detection operation. DetectStackDrift returns a
 	// StackDriftDetectionId you can use to monitor the progress of the operation using
 	// DescribeStackDriftDetectionStatus . Once the drift detection operation has
 	// completed, use DescribeStackResourceDriftsto return drift information about the stack and its resources.
 	//
-	// [Detecting Unregulated Configuration Changes to Stacks and Resources]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-stack-drift.html
+	// [Detect unmanaged configuration changes to stacks and resources with drift detection]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-stack-drift.html
 	DescribeStackDriftDetectionStatus(ctx context.Context, params *DescribeStackDriftDetectionStatusInput, optFns ...func(*Options)) (*DescribeStackDriftDetectionStatusOutput, error)
 	// Returns all stack related events for a specified stack in reverse chronological
-	// order. For more information about a stack's event history, see [CloudFormation stack creation events]in the
+	// order. For more information about a stack's event history, see [Understand CloudFormation stack creation events]in the
 	// CloudFormation User Guide.
 	//
 	// You can list events for stacks that have failed to create or have been deleted
 	// by specifying the unique stack identifier (stack ID).
 	//
-	// [CloudFormation stack creation events]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stack-resource-configuration-complete.html
+	// [Understand CloudFormation stack creation events]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stack-resource-configuration-complete.html
 	DescribeStackEvents(ctx context.Context, params *DescribeStackEventsInput, optFns ...func(*Options)) (*DescribeStackEventsOutput, error)
 	// Returns the stack instance that's associated with the specified StackSet,
 	// Amazon Web Services account, and Amazon Web Services Region.
@@ -226,6 +236,8 @@ type CloudFormation interface {
 	// For a list of stack instances that are associated with a specific StackSet, use ListStackInstances
 	// .
 	DescribeStackInstance(ctx context.Context, params *DescribeStackInstanceInput, optFns ...func(*Options)) (*DescribeStackInstanceOutput, error)
+	// Describes the stack refactor status.
+	DescribeStackRefactor(ctx context.Context, params *DescribeStackRefactorInput, optFns ...func(*Options)) (*DescribeStackRefactorOutput, error)
 	// Returns a description of the specified resource in the specified stack.
 	//
 	// For deleted stacks, DescribeStackResource returns resource information for up
@@ -239,12 +251,12 @@ type CloudFormation interface {
 	// that has been checked for drift. Resources that haven't yet been checked for
 	// drift aren't included. Resources that don't currently support drift detection
 	// aren't checked, and so not included. For a list of resources that support drift
-	// detection, see [Resources that Support Drift Detection].
+	// detection, see [Resource type support for imports and drift detection].
 	//
 	// Use DetectStackResourceDrift to detect drift on individual resources, or DetectStackDrift to detect drift on all
 	// supported resources for a given stack.
 	//
-	// [Resources that Support Drift Detection]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-stack-drift-resource-list.html
+	// [Resource type support for imports and drift detection]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/resource-import-supported-resources.html
 	DescribeStackResourceDrifts(ctx context.Context, params *DescribeStackResourceDriftsInput, optFns ...func(*Options)) (*DescribeStackResourceDriftsOutput, error)
 	// Returns Amazon Web Services resource descriptions for running and deleted
 	// stacks. If StackName is specified, all the associated resources that are part
@@ -260,7 +272,7 @@ type CloudFormation interface {
 	// You must specify either StackName or PhysicalResourceId , but not both. In
 	// addition, you can specify LogicalResourceId to filter the returned result. For
 	// more information about resources, the LogicalResourceId and PhysicalResourceId ,
-	// go to the [CloudFormation User Guide].
+	// see the [CloudFormation User Guide].
 	//
 	// A ValidationError is returned if you specify both StackName and
 	// PhysicalResourceId in the same request.
@@ -273,11 +285,11 @@ type CloudFormation interface {
 	DescribeStackSetOperation(ctx context.Context, params *DescribeStackSetOperationInput, optFns ...func(*Options)) (*DescribeStackSetOperationOutput, error)
 	// Returns the description for the specified stack; if no stack name was
 	// specified, then it returns the description for all the stacks created. For more
-	// information about a stack's event history, see [CloudFormation stack creation events]in the CloudFormation User Guide.
+	// information about a stack's event history, see [Understand CloudFormation stack creation events]in the CloudFormation User Guide.
 	//
 	// If the stack doesn't exist, a ValidationError is returned.
 	//
-	// [CloudFormation stack creation events]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stack-resource-configuration-complete.html
+	// [Understand CloudFormation stack creation events]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stack-resource-configuration-complete.html
 	DescribeStacks(ctx context.Context, params *DescribeStacksInput, optFns ...func(*Options)) (*DescribeStacksOutput, error)
 	// Returns detailed information about an extension that has been registered.
 	//
@@ -301,12 +313,12 @@ type CloudFormation interface {
 	// resource with its expected template configuration. Only resource properties
 	// explicitly defined in the stack template are checked for drift. A stack is
 	// considered to have drifted if one or more of its resources differ from their
-	// expected template configurations. For more information, see [Detecting Unregulated Configuration Changes to Stacks and Resources].
+	// expected template configurations. For more information, see [Detect unmanaged configuration changes to stacks and resources with drift detection].
 	//
 	// Use DetectStackDrift to detect drift on all supported resources for a given
 	// stack, or DetectStackResourceDriftto detect drift on individual resources.
 	//
-	// For a list of stack resources that currently support drift detection, see [Resources that Support Drift Detection].
+	// For a list of stack resources that currently support drift detection, see [Resource type support for imports and drift detection].
 	//
 	// DetectStackDrift can take up to several minutes, depending on the number of
 	// resources contained within the stack. Use DescribeStackDriftDetectionStatusto monitor the progress of a detect
@@ -317,29 +329,29 @@ type CloudFormation interface {
 	// nested stacks belonging to that stack. Perform DetectStackDrift directly on the
 	// nested stack itself.
 	//
-	// [Resources that Support Drift Detection]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-stack-drift-resource-list.html
-	// [Detecting Unregulated Configuration Changes to Stacks and Resources]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-stack-drift.html
+	// [Resource type support for imports and drift detection]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/resource-import-supported-resources.html
+	// [Detect unmanaged configuration changes to stacks and resources with drift detection]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-stack-drift.html
 	DetectStackDrift(ctx context.Context, params *DetectStackDriftInput, optFns ...func(*Options)) (*DetectStackDriftOutput, error)
 	// Returns information about whether a resource's actual configuration differs, or
 	// has drifted, from its expected configuration, as defined in the stack template
 	// and any values specified as template parameters. This information includes
 	// actual and expected property values for resources in which CloudFormation
 	// detects drift. Only resource properties explicitly defined in the stack template
-	// are checked for drift. For more information about stack and resource drift, see [Detecting Unregulated Configuration Changes to Stacks and Resources]
+	// are checked for drift. For more information about stack and resource drift, see [Detect unmanaged configuration changes to stacks and resources with drift detection]
 	// .
 	//
 	// Use DetectStackResourceDrift to detect drift on individual resources, or DetectStackDrift to
 	// detect drift on all resources in a given stack that support drift detection.
 	//
 	// Resources that don't currently support drift detection can't be checked. For a
-	// list of resources that support drift detection, see [Resources that Support Drift Detection].
+	// list of resources that support drift detection, see [Resource type support for imports and drift detection].
 	//
-	// [Resources that Support Drift Detection]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-stack-drift-resource-list.html
-	// [Detecting Unregulated Configuration Changes to Stacks and Resources]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-stack-drift.html
+	// [Resource type support for imports and drift detection]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/resource-import-supported-resources.html
+	// [Detect unmanaged configuration changes to stacks and resources with drift detection]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-stack-drift.html
 	DetectStackResourceDrift(ctx context.Context, params *DetectStackResourceDriftInput, optFns ...func(*Options)) (*DetectStackResourceDriftOutput, error)
 	// Detect drift on a stack set. When CloudFormation performs drift detection on a
 	// stack set, it performs drift detection on the stack associated with each stack
-	// instance in the stack set. For more information, see [How CloudFormation performs drift detection on a stack set].
+	// instance in the stack set. For more information, see [Performing drift detection on CloudFormation StackSets].
 	//
 	// DetectStackSetDrift returns the OperationId of the stack set drift detection
 	// operation. Use this operation id with DescribeStackSetOperationto monitor the progress of the drift
@@ -360,16 +372,12 @@ type CloudFormation interface {
 	//   - Use DescribeStackInstanceto return detailed information about a specific stack instance,
 	//     including its drift status and last drift time checked.
 	//
-	// For more information about performing a drift detection operation on a stack
-	// set, see [Detecting unmanaged changes in stack sets].
-	//
 	// You can only run a single drift detection operation on a given stack set at one
 	// time.
 	//
 	// To stop a drift detection stack set operation, use StopStackSetOperation.
 	//
-	// [Detecting unmanaged changes in stack sets]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stacksets-drift.html
-	// [How CloudFormation performs drift detection on a stack set]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stacksets-drift.html
+	// [Performing drift detection on CloudFormation StackSets]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stacksets-drift.html
 	DetectStackSetDrift(ctx context.Context, params *DetectStackSetDriftInput, optFns ...func(*Options)) (*DetectStackSetDriftOutput, error)
 	// Returns the estimated monthly cost of a template. The return value is an Amazon
 	// Web Services Simple Monthly Calculator URL with a query string that describes
@@ -390,6 +398,8 @@ type CloudFormation interface {
 	// To create a change set for the entire stack hierarchy, IncludeNestedStacks must
 	// have been set to True .
 	ExecuteChangeSet(ctx context.Context, params *ExecuteChangeSetInput, optFns ...func(*Options)) (*ExecuteChangeSetOutput, error)
+	// Executes the stack refactor operation.
+	ExecuteStackRefactor(ctx context.Context, params *ExecuteStackRefactorInput, optFns ...func(*Options)) (*ExecuteStackRefactorOutput, error)
 	// Retrieves a generated template. If the template is in an InProgress or Pending
 	// status then the template returned will be the template when the template was
 	// last in a Complete status. If the template has not yet been in a Complete
@@ -430,13 +440,16 @@ type CloudFormation interface {
 	// this action. Use this action to see the exported output values that you can
 	// import into other stacks. To import values, use the [Fn::ImportValue]function.
 	//
-	// For more information, see [CloudFormation export stack output values].
+	// For more information, see [Get exported outputs from a deployed CloudFormation stack].
 	//
-	// [CloudFormation export stack output values]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-stack-exports.html
+	// [Get exported outputs from a deployed CloudFormation stack]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-stack-exports.html
 	// [Fn::ImportValue]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-importvalue.html
 	ListExports(ctx context.Context, params *ListExportsInput, optFns ...func(*Options)) (*ListExportsOutput, error)
 	// Lists your generated templates in this Region.
 	ListGeneratedTemplates(ctx context.Context, params *ListGeneratedTemplatesInput, optFns ...func(*Options)) (*ListGeneratedTemplatesOutput, error)
+	// Returns summaries of invoked Hooks when a change set or Cloud Control API
+	// operation target is provided.
+	ListHookResults(ctx context.Context, params *ListHookResultsInput, optFns ...func(*Options)) (*ListHookResultsOutput, error)
 	// Lists all stacks that are importing an exported output value. To modify or
 	// remove an exported output value, first use this action to see which stacks are
 	// using it. To see the exported output values in your account, see ListExports.
@@ -469,6 +482,10 @@ type CloudFormation interface {
 	// a specific Amazon Web Services account name or Region, or that have a specific
 	// status.
 	ListStackInstances(ctx context.Context, params *ListStackInstancesInput, optFns ...func(*Options)) (*ListStackInstancesOutput, error)
+	// Lists the stack refactor actions that will be taken after calling the ExecuteStackRefactor action.
+	ListStackRefactorActions(ctx context.Context, params *ListStackRefactorActionsInput, optFns ...func(*Options)) (*ListStackRefactorActionsOutput, error)
+	// Lists all account stack refactor operations and their statuses.
+	ListStackRefactors(ctx context.Context, params *ListStackRefactorsInput, optFns ...func(*Options)) (*ListStackRefactorsOutput, error)
 	// Returns descriptions of all resources of the specified stack.
 	//
 	// For deleted stacks, ListStackResources returns resource information for up to
@@ -510,7 +527,7 @@ type CloudFormation interface {
 	// Publishes the specified extension to the CloudFormation registry as a public
 	// extension in this Region. Public extensions are available for use by all
 	// CloudFormation users. For more information about publishing extensions, see [Publishing extensions to make them available for public use]in
-	// the CloudFormation CLI User Guide.
+	// the CloudFormation Command Line Interface (CLI) User Guide.
 	//
 	// To publish an extension, you must be registered as a publisher with
 	// CloudFormation. For more information, see [RegisterPublisher].
@@ -530,9 +547,9 @@ type CloudFormation interface {
 	// Web Services Regions.
 	//
 	// For information about requirements for registering as a public extension
-	// publisher, see [Registering your account to publish CloudFormation extensions]in the CloudFormation CLI User Guide.
+	// publisher, see [Prerequisite: Registering your account to publish CloudFormation extensions]in the CloudFormation Command Line Interface (CLI) User Guide.
 	//
-	// [Registering your account to publish CloudFormation extensions]: https://docs.aws.amazon.com/cloudformation-cli/latest/userguide/publish-extension.html#publish-extension-prereqs
+	// [Prerequisite: Registering your account to publish CloudFormation extensions]: https://docs.aws.amazon.com/cloudformation-cli/latest/userguide/publish-extension.html#publish-extension-prereqs
 	RegisterPublisher(ctx context.Context, params *RegisterPublisherInput, optFns ...func(*Options)) (*RegisterPublisherOutput, error)
 	// Registers an extension with the CloudFormation service. Registering an
 	// extension makes it available for use in CloudFormation templates in your Amazon
@@ -545,7 +562,7 @@ type CloudFormation interface {
 	//   - Making the extension available for use in your account.
 	//
 	// For more information about how to develop extensions and ready them for
-	// registration, see [Creating Resource Providers]in the CloudFormation CLI User Guide.
+	// registration, see [Creating resource types using the CloudFormation CLI]in the CloudFormation Command Line Interface (CLI) User Guide.
 	//
 	// You can have a maximum of 50 resource extension versions registered at a time.
 	// This maximum is per account and per Region. Use [DeregisterType]to deregister specific
@@ -556,11 +573,11 @@ type CloudFormation interface {
 	//
 	// Once you have registered a private extension in your account and Region, use [SetTypeConfiguration]
 	// to specify configuration properties for the extension. For more information, see
-	// [Configuring extensions at the account level]in the CloudFormation User Guide.
+	// [Edit configuration data for extensions in your account]in the CloudFormation User Guide.
 	//
 	// [SetTypeConfiguration]: https://docs.aws.amazon.com/AWSCloudFormation/latest/APIReference/API_SetTypeConfiguration.html
-	// [Creating Resource Providers]: https://docs.aws.amazon.com/cloudformation-cli/latest/userguide/resource-types.html
-	// [Configuring extensions at the account level]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/registry-private.html#registry-set-configuration
+	// [Edit configuration data for extensions in your account]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/registry-set-configuration.html
+	// [Creating resource types using the CloudFormation CLI]: https://docs.aws.amazon.com/cloudformation-cli/latest/userguide/resource-types.html
 	// [DeregisterType]: https://docs.aws.amazon.com/AWSCloudFormation/latest/APIReference/API_DeregisterType.html
 	RegisterType(ctx context.Context, params *RegisterTypeInput, optFns ...func(*Options)) (*RegisterTypeOutput, error)
 	// When specifying RollbackStack , you preserve the state of previously provisioned
@@ -590,16 +607,16 @@ type CloudFormation interface {
 	// the given account and Region.
 	//
 	// To view the current configuration data for an extension, refer to the
-	// ConfigurationSchema element of [DescribeType]. For more information, see [Configuring extensions at the account level] in the
+	// ConfigurationSchema element of [DescribeType]. For more information, see [Edit configuration data for extensions in your account] in the
 	// CloudFormation User Guide.
 	//
 	// It's strongly recommended that you use dynamic references to restrict sensitive
 	// configuration definitions, such as third-party credentials. For more details on
-	// dynamic references, see [Using dynamic references to specify template values]in the CloudFormation User Guide.
+	// dynamic references, see [Specify values stored in other services using dynamic references]in the CloudFormation User Guide.
 	//
 	// [DescribeType]: https://docs.aws.amazon.com/AWSCloudFormation/latest/APIReference/API_DescribeType.html
-	// [Using dynamic references to specify template values]: https://docs.aws.amazon.com/
-	// [Configuring extensions at the account level]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/registry-private.html#registry-set-configuration
+	// [Edit configuration data for extensions in your account]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/registry-set-configuration.html
+	// [Specify values stored in other services using dynamic references]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/dynamic-references.html
 	SetTypeConfiguration(ctx context.Context, params *SetTypeConfigurationInput, optFns ...func(*Options)) (*SetTypeConfigurationOutput, error)
 	// Specify the default version of an extension. The default version of an
 	// extension will be used in CloudFormation operations.
@@ -627,7 +644,8 @@ type CloudFormation interface {
 	//   - For modules, this includes determining if the module's model meets all
 	//     necessary requirements.
 	//
-	// For more information, see [Testing your public extension prior to publishing] in the CloudFormation CLI User Guide.
+	// For more information, see [Testing your public extension before publishing] in the CloudFormation Command Line Interface (CLI)
+	// User Guide.
 	//
 	// If you don't specify a version, CloudFormation uses the default version of the
 	// extension in your account and Region for testing.
@@ -640,10 +658,11 @@ type CloudFormation interface {
 	// status description for the extension.
 	//
 	// An extension must have a test status of PASSED before it can be published. For
-	// more information, see [Publishing extensions to make them available for public use]in the CloudFormation CLI User Guide.
+	// more information, see [Publishing extensions to make them available for public use]in the CloudFormation Command Line Interface (CLI) User
+	// Guide.
 	//
 	// [DescribeType]: https://docs.aws.amazon.com/AWSCloudFormation/latest/APIReference/API_DescribeType.html
-	// [Testing your public extension prior to publishing]: https://docs.aws.amazon.com/cloudformation-cli/latest/userguide/publish-extension.html#publish-extension-testing
+	// [Testing your public extension before publishing]: https://docs.aws.amazon.com/cloudformation-cli/latest/userguide/publish-extension.html#publish-extension-testing
 	// [RegisterType]: https://docs.aws.amazon.com/AWSCloudFormation/latest/APIReference/API_RegisterType.html
 	// [Publishing extensions to make them available for public use]: https://docs.aws.amazon.com/cloudformation-cli/latest/userguide/resource-type-publish.html
 	TestType(ctx context.Context, params *TestTypeInput, optFns ...func(*Options)) (*TestTypeOutput, error)
@@ -658,10 +677,10 @@ type CloudFormation interface {
 	//
 	// To get a copy of the template for an existing stack, you can use the GetTemplate action.
 	//
-	// For more information about creating an update template, updating a stack, and
-	// monitoring the progress of the update, see [Updating a Stack].
+	// For more information about updating a stack and monitoring the progress of the
+	// update, see [Managing Amazon Web Services resources as a single unit with CloudFormation stacks]in the CloudFormation User Guide.
 	//
-	// [Updating a Stack]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-updating-stacks.html
+	// [Managing Amazon Web Services resources as a single unit with CloudFormation stacks]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stacks.html
 	UpdateStack(ctx context.Context, params *UpdateStackInput, optFns ...func(*Options)) (*UpdateStackOutput, error)
 	// Updates the parameter values for stack instances for the specified accounts,
 	// within the specified Amazon Web Services Regions. A stack instance refers to a
@@ -694,14 +713,14 @@ type CloudFormation interface {
 	UpdateStackSet(ctx context.Context, params *UpdateStackSetInput, optFns ...func(*Options)) (*UpdateStackSetOutput, error)
 	// Updates termination protection for the specified stack. If a user attempts to
 	// delete a stack with termination protection enabled, the operation fails and the
-	// stack remains unchanged. For more information, see [Protecting a Stack From Being Deleted]in the CloudFormation User
+	// stack remains unchanged. For more information, see [Protect a CloudFormation stack from being deleted]in the CloudFormation User
 	// Guide.
 	//
 	// For [nested stacks], termination protection is set on the root stack and can't be changed
 	// directly on the nested stack.
 	//
-	// [Protecting a Stack From Being Deleted]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-protect-stacks.html
 	// [nested stacks]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-nested-stacks.html
+	// [Protect a CloudFormation stack from being deleted]: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-protect-stacks.html
 	UpdateTerminationProtection(ctx context.Context, params *UpdateTerminationProtectionInput, optFns ...func(*Options)) (*UpdateTerminationProtectionOutput, error)
 	// Validates a specified template. CloudFormation first checks if the template is
 	// valid JSON. If it isn't, CloudFormation checks if the template is valid YAML. If

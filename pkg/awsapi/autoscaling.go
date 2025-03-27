@@ -33,7 +33,7 @@ type ASG interface {
 	//
 	// [Detach or attach instances]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-detach-attach-instances.html
 	AttachInstances(ctx context.Context, params *AttachInstancesInput, optFns ...func(*Options)) (*AttachInstancesOutput, error)
-	// This API operation is superseded by AttachTrafficSources, which can attach multiple traffic sources
+	// This API operation is superseded by [AttachTrafficSources], which can attach multiple traffic sources
 	// types. We recommend using AttachTrafficSources to simplify how you manage
 	// traffic sources. However, we continue to support AttachLoadBalancerTargetGroups
 	// . You can use both the original AttachLoadBalancerTargetGroups API operation
@@ -51,17 +51,20 @@ type ASG interface {
 	//
 	//   - Gateway Load Balancer - Operates at the network layer (layer 3).
 	//
-	// To describe the target groups for an Auto Scaling group, call the DescribeLoadBalancerTargetGroups API. To
-	// detach the target group from the Auto Scaling group, call the DetachLoadBalancerTargetGroupsAPI.
+	// To describe the target groups for an Auto Scaling group, call the [DescribeLoadBalancerTargetGroups] API. To
+	// detach the target group from the Auto Scaling group, call the [DetachLoadBalancerTargetGroups]API.
 	//
 	// This operation is additive and does not detach existing target groups or
 	// Classic Load Balancers from the Auto Scaling group.
 	//
 	// For more information, see [Use Elastic Load Balancing to distribute traffic across the instances in your Auto Scaling group] in the Amazon EC2 Auto Scaling User Guide.
 	//
+	// [DescribeLoadBalancerTargetGroups]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeLoadBalancerTargetGroups.html
+	// [DetachLoadBalancerTargetGroups]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DetachLoadBalancerTargetGroups.html
+	// [AttachTrafficSources]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_AttachTrafficSources.html
 	// [Use Elastic Load Balancing to distribute traffic across the instances in your Auto Scaling group]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/autoscaling-load-balancer.html
 	AttachLoadBalancerTargetGroups(ctx context.Context, params *AttachLoadBalancerTargetGroupsInput, optFns ...func(*Options)) (*AttachLoadBalancerTargetGroupsOutput, error)
-	// This API operation is superseded by AttachTrafficSources, which can attach multiple traffic sources
+	// This API operation is superseded by [https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_AttachTrafficSources.html], which can attach multiple traffic sources
 	// types. We recommend using AttachTrafficSources to simplify how you manage
 	// traffic sources. However, we continue to support AttachLoadBalancers . You can
 	// use both the original AttachLoadBalancers API operation and AttachTrafficSources
@@ -71,14 +74,17 @@ type ASG interface {
 	// group. Amazon EC2 Auto Scaling registers the running instances with these
 	// Classic Load Balancers.
 	//
-	// To describe the load balancers for an Auto Scaling group, call the DescribeLoadBalancers API. To
-	// detach a load balancer from the Auto Scaling group, call the DetachLoadBalancersAPI.
+	// To describe the load balancers for an Auto Scaling group, call the [DescribeLoadBalancers] API. To
+	// detach a load balancer from the Auto Scaling group, call the [DetachLoadBalancers]API.
 	//
 	// This operation is additive and does not detach existing Classic Load Balancers
 	// or target groups from the Auto Scaling group.
 	//
 	// For more information, see [Use Elastic Load Balancing to distribute traffic across the instances in your Auto Scaling group] in the Amazon EC2 Auto Scaling User Guide.
 	//
+	// [DetachLoadBalancers]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DetachLoadBalancers.html
+	// [DescribeLoadBalancers]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeLoadBalancers.html
+	// [https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_AttachTrafficSources.html]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_AttachTrafficSources.html
 	// [Use Elastic Load Balancing to distribute traffic across the instances in your Auto Scaling group]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/autoscaling-load-balancer.html
 	AttachLoadBalancers(ctx context.Context, params *AttachLoadBalancersInput, optFns ...func(*Options)) (*AttachLoadBalancersOutput, error)
 	// Attaches one or more traffic sources to the specified Auto Scaling group.
@@ -98,9 +104,12 @@ type ASG interface {
 	// This operation is additive and does not detach existing traffic sources from
 	// the Auto Scaling group.
 	//
-	// After the operation completes, use the DescribeTrafficSources API to return details about the state
+	// After the operation completes, use the [DescribeTrafficSources] API to return details about the state
 	// of the attachments between traffic sources and your Auto Scaling group. To
-	// detach a traffic source from the Auto Scaling group, call the DetachTrafficSourcesAPI.
+	// detach a traffic source from the Auto Scaling group, call the [DetachTrafficSources]API.
+	//
+	// [DescribeTrafficSources]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeTrafficSources.html
+	// [DetachTrafficSources]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DetachTrafficSources.html
 	AttachTrafficSources(ctx context.Context, params *AttachTrafficSourcesInput, optFns ...func(*Options)) (*AttachTrafficSourcesOutput, error)
 	// Deletes one or more scheduled actions for the specified Auto Scaling group.
 	BatchDeleteScheduledAction(ctx context.Context, params *BatchDeleteScheduledActionInput, optFns ...func(*Options)) (*BatchDeleteScheduledActionOutput, error)
@@ -116,9 +125,10 @@ type ASG interface {
 	// changes.
 	//
 	// When you cancel an instance refresh, this does not roll back any changes that
-	// it made. Use the RollbackInstanceRefreshAPI to roll back instead.
+	// it made. Use the [RollbackInstanceRefresh]API to roll back instead.
 	//
 	// [instance refresh feature]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/asg-instance-refresh.html
+	// [RollbackInstanceRefresh]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_RollbackInstanceRefresh.html
 	CancelInstanceRefresh(ctx context.Context, params *CancelInstanceRefreshInput, optFns ...func(*Options)) (*CancelInstanceRefreshOutput, error)
 	// Completes the lifecycle action for the specified token or instance with the
 	// specified result.
@@ -144,11 +154,12 @@ type ASG interface {
 	//   - If you need more time, record the lifecycle action heartbeat to keep the
 	//     instance in a wait state.
 	//
-	//   - If you finish before the timeout period ends, send a callback by using the CompleteLifecycleAction
+	//   - If you finish before the timeout period ends, send a callback by using the [CompleteLifecycleAction]
 	//     API call.
 	//
 	// For more information, see [Complete a lifecycle action] in the Amazon EC2 Auto Scaling User Guide.
 	//
+	// [CompleteLifecycleAction]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_CompleteLifecycleAction.html
 	// [Complete a lifecycle action]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/completing-lifecycle-hooks.html
 	CompleteLifecycleAction(ctx context.Context, params *CompleteLifecycleActionInput, optFns ...func(*Options)) (*CompleteLifecycleActionOutput, error)
 	//	We strongly recommend using a launch template when calling this operation to
@@ -158,7 +169,7 @@ type ASG interface {
 	// Creates an Auto Scaling group with the specified name and attributes.
 	//
 	// If you exceed your maximum limit of Auto Scaling groups, the call fails. To
-	// query this limit, call the DescribeAccountLimitsAPI. For information about updating this limit, see [Quotas for Amazon EC2 Auto Scaling]
+	// query this limit, call the [DescribeAccountLimits]API. For information about updating this limit, see [Quotas for Amazon EC2 Auto Scaling]
 	// in the Amazon EC2 Auto Scaling User Guide.
 	//
 	// If you're new to Amazon EC2 Auto Scaling, see the introductory tutorials in [Get started with Amazon EC2 Auto Scaling] in
@@ -170,13 +181,14 @@ type ASG interface {
 	// weights for the instance types, you must specify these sizes with the same units
 	// that you use for weighting instances.
 	//
+	// [DescribeAccountLimits]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeAccountLimits.html
 	// [Get started with Amazon EC2 Auto Scaling]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/get-started-with-ec2-auto-scaling.html
 	// [Quotas for Amazon EC2 Auto Scaling]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-quotas.html
 	CreateAutoScalingGroup(ctx context.Context, params *CreateAutoScalingGroupInput, optFns ...func(*Options)) (*CreateAutoScalingGroupOutput, error)
 	// Creates a launch configuration.
 	//
 	// If you exceed your maximum limit of launch configurations, the call fails. To
-	// query this limit, call the DescribeAccountLimitsAPI. For information about updating this limit, see [Quotas for Amazon EC2 Auto Scaling]
+	// query this limit, call the [DescribeAccountLimits]API. For information about updating this limit, see [Quotas for Amazon EC2 Auto Scaling]
 	// in the Amazon EC2 Auto Scaling User Guide.
 	//
 	// For more information, see [Launch configurations] in the Amazon EC2 Auto Scaling User Guide.
@@ -188,6 +200,7 @@ type ASG interface {
 	// information about using launch templates, see [Launch templates]in the Amazon EC2 Auto Scaling
 	// User Guide.
 	//
+	// [DescribeAccountLimits]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeAccountLimits.html
 	// [Quotas for Amazon EC2 Auto Scaling]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-quotas.html
 	// [Launch configurations]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/launch-configurations.html
 	// [Launch templates]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/launch-templates.html
@@ -208,11 +221,11 @@ type ASG interface {
 	// operation will also terminate the EC2 instances. If the group has a warm pool,
 	// the force delete option also deletes the warm pool.
 	//
-	// To remove instances from the Auto Scaling group before deleting it, call the DetachInstances
+	// To remove instances from the Auto Scaling group before deleting it, call the [DetachInstances]
 	// API with the list of instances and the option to decrement the desired capacity.
 	// This ensures that Amazon EC2 Auto Scaling does not launch replacement instances.
 	//
-	// To terminate all instances before deleting the Auto Scaling group, call the UpdateAutoScalingGroup
+	// To terminate all instances before deleting the Auto Scaling group, call the [UpdateAutoScalingGroup]
 	// API and set the minimum size and desired capacity of the Auto Scaling group to
 	// zero.
 	//
@@ -222,6 +235,8 @@ type ASG interface {
 	// For more information, see [Delete your Auto Scaling infrastructure] in the Amazon EC2 Auto Scaling User Guide.
 	//
 	// [Delete your Auto Scaling infrastructure]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-process-shutdown.html
+	// [DetachInstances]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DetachInstances.html
+	// [UpdateAutoScalingGroup]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_UpdateAutoScalingGroup.html
 	DeleteAutoScalingGroup(ctx context.Context, params *DeleteAutoScalingGroupInput, optFns ...func(*Options)) (*DeleteAutoScalingGroupOutput, error)
 	// Deletes the specified launch configuration.
 	//
@@ -284,8 +299,10 @@ type ASG interface {
 	// information for all Auto Scaling groups.
 	//
 	// This operation also returns information about instances in Auto Scaling groups.
-	// To retrieve information about the instances in a warm pool, you must call the DescribeWarmPool
+	// To retrieve information about the instances in a warm pool, you must call the [DescribeWarmPool]
 	// API.
+	//
+	// [DescribeWarmPool]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeWarmPool.html
 	DescribeAutoScalingGroups(ctx context.Context, params *DescribeAutoScalingGroupsInput, optFns ...func(*Options)) (*DescribeAutoScalingGroupsOutput, error)
 	// Gets information about the Auto Scaling instances in the account and Region.
 	DescribeAutoScalingInstances(ctx context.Context, params *DescribeAutoScalingInstancesInput, optFns ...func(*Options)) (*DescribeAutoScalingInstancesOutput, error)
@@ -320,7 +337,7 @@ type ASG interface {
 	DescribeLifecycleHookTypes(ctx context.Context, params *DescribeLifecycleHookTypesInput, optFns ...func(*Options)) (*DescribeLifecycleHookTypesOutput, error)
 	// Gets information about the lifecycle hooks for the specified Auto Scaling group.
 	DescribeLifecycleHooks(ctx context.Context, params *DescribeLifecycleHooksInput, optFns ...func(*Options)) (*DescribeLifecycleHooksOutput, error)
-	// This API operation is superseded by DescribeTrafficSources, which can describe multiple traffic
+	// This API operation is superseded by [DescribeTrafficSources], which can describe multiple traffic
 	// sources types. We recommend using DetachTrafficSources to simplify how you
 	// manage traffic sources. However, we continue to support
 	// DescribeLoadBalancerTargetGroups . You can use both the original
@@ -341,20 +358,25 @@ type ASG interface {
 	// If no registered instances pass the health checks, the target group doesn't
 	// enter the InService state.
 	//
-	// Target groups also have an InService state if you attach them in the CreateAutoScalingGroup API call.
+	// Target groups also have an InService state if you attach them in the [CreateAutoScalingGroup] API call.
 	// If your target group state is InService , but it is not working properly, check
-	// the scaling activities by calling DescribeScalingActivitiesand take any corrective actions necessary.
+	// the scaling activities by calling [DescribeScalingActivities]and take any corrective actions necessary.
 	//
 	// For help with failed health checks, see [Troubleshooting Amazon EC2 Auto Scaling: Health checks] in the Amazon EC2 Auto Scaling User
 	// Guide. For more information, see [Use Elastic Load Balancing to distribute traffic across the instances in your Auto Scaling group]in the Amazon EC2 Auto Scaling User Guide.
 	//
 	// You can use this operation to describe target groups that were attached by
-	// using AttachLoadBalancerTargetGroups, but not for target groups that were attached by using AttachTrafficSources.
+	// using [AttachLoadBalancerTargetGroups], but not for target groups that were attached by using [AttachTrafficSources].
 	//
 	// [Troubleshooting Amazon EC2 Auto Scaling: Health checks]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/ts-as-healthchecks.html
+	// [AttachLoadBalancerTargetGroups]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_AttachLoadBalancerTargetGroups.html
+	// [DescribeScalingActivities]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeScalingActivities.html
+	// [CreateAutoScalingGroup]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_CreateAutoScalingGroup.html
+	// [DescribeTrafficSources]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeTrafficSources.html
+	// [AttachTrafficSources]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_AttachTrafficSources.html
 	// [Use Elastic Load Balancing to distribute traffic across the instances in your Auto Scaling group]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/autoscaling-load-balancer.html
 	DescribeLoadBalancerTargetGroups(ctx context.Context, params *DescribeLoadBalancerTargetGroupsInput, optFns ...func(*Options)) (*DescribeLoadBalancerTargetGroupsOutput, error)
-	// This API operation is superseded by DescribeTrafficSources, which can describe multiple traffic
+	// This API operation is superseded by [DescribeTrafficSources], which can describe multiple traffic
 	// sources types. We recommend using DescribeTrafficSources to simplify how you
 	// manage traffic sources. However, we continue to support DescribeLoadBalancers .
 	// You can use both the original DescribeLoadBalancers API operation and
@@ -363,7 +385,7 @@ type ASG interface {
 	// Gets information about the load balancers for the specified Auto Scaling group.
 	//
 	// This operation describes only Classic Load Balancers. If you have Application
-	// Load Balancers, Network Load Balancers, or Gateway Load Balancers, use the DescribeLoadBalancerTargetGroupsAPI
+	// Load Balancers, Network Load Balancers, or Gateway Load Balancers, use the [DescribeLoadBalancerTargetGroups]API
 	// instead.
 	//
 	// To determine the attachment status of the load balancer, use the State element
@@ -377,15 +399,19 @@ type ASG interface {
 	// If no registered instances pass the health checks, the load balancer doesn't
 	// enter the InService state.
 	//
-	// Load balancers also have an InService state if you attach them in the CreateAutoScalingGroup API
+	// Load balancers also have an InService state if you attach them in the [CreateAutoScalingGroup] API
 	// call. If your load balancer state is InService , but it is not working properly,
-	// check the scaling activities by calling DescribeScalingActivitiesand take any corrective actions
+	// check the scaling activities by calling [DescribeScalingActivities]and take any corrective actions
 	// necessary.
 	//
 	// For help with failed health checks, see [Troubleshooting Amazon EC2 Auto Scaling: Health checks] in the Amazon EC2 Auto Scaling User
 	// Guide. For more information, see [Use Elastic Load Balancing to distribute traffic across the instances in your Auto Scaling group]in the Amazon EC2 Auto Scaling User Guide.
 	//
 	// [Troubleshooting Amazon EC2 Auto Scaling: Health checks]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/ts-as-healthchecks.html
+	// [DescribeScalingActivities]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeScalingActivities.html
+	// [DescribeLoadBalancerTargetGroups]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeLoadBalancerTargetGroups.html
+	// [CreateAutoScalingGroup]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_CreateAutoScalingGroup.html
+	// [DescribeTrafficSources]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeTrafficSources.html
 	// [Use Elastic Load Balancing to distribute traffic across the instances in your Auto Scaling group]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/autoscaling-load-balancer.html
 	DescribeLoadBalancers(ctx context.Context, params *DescribeLoadBalancersInput, optFns ...func(*Options)) (*DescribeLoadBalancersOutput, error)
 	// Describes the available CloudWatch metrics for Amazon EC2 Auto Scaling.
@@ -410,13 +436,18 @@ type ASG interface {
 	// [Troubleshooting Amazon EC2 Auto Scaling]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/CHAP_Troubleshooting.html
 	// [Verify a scaling activity for an Auto Scaling group]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-verify-scaling-activity.html
 	DescribeScalingActivities(ctx context.Context, params *DescribeScalingActivitiesInput, optFns ...func(*Options)) (*DescribeScalingActivitiesOutput, error)
-	// Describes the scaling process types for use with the ResumeProcesses and SuspendProcesses APIs.
+	// Describes the scaling process types for use with the [ResumeProcesses] and [SuspendProcesses] APIs.
+	//
+	// [ResumeProcesses]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_ResumeProcesses.html
+	// [SuspendProcesses]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_SuspendProcesses.html
 	DescribeScalingProcessTypes(ctx context.Context, params *DescribeScalingProcessTypesInput, optFns ...func(*Options)) (*DescribeScalingProcessTypesOutput, error)
 	// Gets information about the scheduled actions that haven't run or that have not
 	// reached their end time.
 	//
 	// To describe the scaling activities for scheduled actions that have already run,
-	// call the DescribeScalingActivitiesAPI.
+	// call the [DescribeScalingActivities]API.
+	//
+	// [DescribeScalingActivities]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeScalingActivities.html
 	DescribeScheduledActions(ctx context.Context, params *DescribeScheduledActionsInput, optFns ...func(*Options)) (*DescribeScheduledActionsOutput, error)
 	// Describes the specified tags.
 	//
@@ -470,7 +501,7 @@ type ASG interface {
 	//
 	// [Detach or attach instances]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-detach-attach-instances.html
 	DetachInstances(ctx context.Context, params *DetachInstancesInput, optFns ...func(*Options)) (*DetachInstancesOutput, error)
-	// This API operation is superseded by DetachTrafficSources, which can detach multiple traffic sources
+	// This API operation is superseded by [DetachTrafficSources], which can detach multiple traffic sources
 	// types. We recommend using DetachTrafficSources to simplify how you manage
 	// traffic sources. However, we continue to support DetachLoadBalancerTargetGroups
 	// . You can use both the original DetachLoadBalancerTargetGroups API operation
@@ -480,13 +511,18 @@ type ASG interface {
 	//
 	// When you detach a target group, it enters the Removing state while
 	// deregistering the instances in the group. When all instances are deregistered,
-	// then you can no longer describe the target group using the DescribeLoadBalancerTargetGroupsAPI call. The
+	// then you can no longer describe the target group using the [DescribeLoadBalancerTargetGroups]API call. The
 	// instances remain running.
 	//
-	// You can use this operation to detach target groups that were attached by using AttachLoadBalancerTargetGroups
-	// , but not for target groups that were attached by using AttachTrafficSources.
+	// You can use this operation to detach target groups that were attached by using [AttachLoadBalancerTargetGroups]
+	// , but not for target groups that were attached by using [AttachTrafficSources].
+	//
+	// [AttachLoadBalancerTargetGroups]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_AttachLoadBalancerTargetGroups.html
+	// [DescribeLoadBalancerTargetGroups]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeLoadBalancerTargetGroups.html
+	// [DetachTrafficSources]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeTrafficSources.html
+	// [AttachTrafficSources]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_AttachTrafficSources.html
 	DetachLoadBalancerTargetGroups(ctx context.Context, params *DetachLoadBalancerTargetGroupsInput, optFns ...func(*Options)) (*DetachLoadBalancerTargetGroupsOutput, error)
-	// This API operation is superseded by DetachTrafficSources, which can detach multiple traffic sources
+	// This API operation is superseded by [DetachTrafficSources], which can detach multiple traffic sources
 	// types. We recommend using DetachTrafficSources to simplify how you manage
 	// traffic sources. However, we continue to support DetachLoadBalancers . You can
 	// use both the original DetachLoadBalancers API operation and DetachTrafficSources
@@ -496,20 +532,26 @@ type ASG interface {
 	// group.
 	//
 	// This operation detaches only Classic Load Balancers. If you have Application
-	// Load Balancers, Network Load Balancers, or Gateway Load Balancers, use the DetachLoadBalancerTargetGroupsAPI
+	// Load Balancers, Network Load Balancers, or Gateway Load Balancers, use the [DetachLoadBalancerTargetGroups]API
 	// instead.
 	//
 	// When you detach a load balancer, it enters the Removing state while
 	// deregistering the instances in the group. When all instances are deregistered,
-	// then you can no longer describe the load balancer using the DescribeLoadBalancersAPI call. The
+	// then you can no longer describe the load balancer using the [DescribeLoadBalancers]API call. The
 	// instances remain running.
+	//
+	// [DetachLoadBalancerTargetGroups]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DetachLoadBalancerTargetGroups.html
+	// [DescribeLoadBalancers]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeLoadBalancers.html
+	// [DetachTrafficSources]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DetachTrafficSources.html
 	DetachLoadBalancers(ctx context.Context, params *DetachLoadBalancersInput, optFns ...func(*Options)) (*DetachLoadBalancersOutput, error)
 	// Detaches one or more traffic sources from the specified Auto Scaling group.
 	//
 	// When you detach a traffic source, it enters the Removing state while
 	// deregistering the instances in the group. When all instances are deregistered,
-	// then you can no longer describe the traffic source using the DescribeTrafficSourcesAPI call. The
+	// then you can no longer describe the traffic source using the [DescribeTrafficSources]API call. The
 	// instances continue to run.
+	//
+	// [DescribeTrafficSources]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeTrafficSources.html
 	DetachTrafficSources(ctx context.Context, params *DetachTrafficSourcesInput, optFns ...func(*Options)) (*DetachTrafficSourcesOutput, error)
 	// Disables group metrics collection for the specified Auto Scaling group.
 	DisableMetricsCollection(ctx context.Context, params *DisableMetricsCollectionInput, optFns ...func(*Options)) (*DisableMetricsCollectionOutput, error)
@@ -589,9 +631,9 @@ type ASG interface {
 	//     instances launch or terminate.
 	//
 	//   - If you need more time, record the lifecycle action heartbeat to keep the
-	//     instance in a wait state using the RecordLifecycleActionHeartbeatAPI call.
+	//     instance in a wait state using the [RecordLifecycleActionHeartbeat]API call.
 	//
-	//   - If you finish before the timeout period ends, send a callback by using the CompleteLifecycleAction
+	//   - If you finish before the timeout period ends, send a callback by using the [CompleteLifecycleAction]
 	//     API call.
 	//
 	// For more information, see [Amazon EC2 Auto Scaling lifecycle hooks] in the Amazon EC2 Auto Scaling User Guide.
@@ -599,11 +641,15 @@ type ASG interface {
 	// If you exceed your maximum limit of lifecycle hooks, which by default is 50 per
 	// Auto Scaling group, the call fails.
 	//
-	// You can view the lifecycle hooks for an Auto Scaling group using the DescribeLifecycleHooks API call.
-	// If you are no longer using a lifecycle hook, you can delete it by calling the DeleteLifecycleHook
+	// You can view the lifecycle hooks for an Auto Scaling group using the [DescribeLifecycleHooks] API call.
+	// If you are no longer using a lifecycle hook, you can delete it by calling the [DeleteLifecycleHook]
 	// API.
 	//
+	// [RecordLifecycleActionHeartbeat]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_RecordLifecycleActionHeartbeat.html
+	// [CompleteLifecycleAction]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_CompleteLifecycleAction.html
 	// [Amazon EC2 Auto Scaling lifecycle hooks]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/lifecycle-hooks.html
+	// [DescribeLifecycleHooks]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeLifecycleHooks.html
+	// [DeleteLifecycleHook]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DeleteLifecycleHook.html
 	PutLifecycleHook(ctx context.Context, params *PutLifecycleHookInput, optFns ...func(*Options)) (*PutLifecycleHookOutput, error)
 	// Configures an Auto Scaling group to send notifications when specified events
 	// take place. Subscribers to the specified topic can have messages delivered to an
@@ -629,25 +675,29 @@ type ASG interface {
 	// For more information about using predictive scaling, see [Predictive scaling for Amazon EC2 Auto Scaling] in the Amazon EC2
 	// Auto Scaling User Guide.
 	//
-	// You can view the scaling policies for an Auto Scaling group using the DescribePolicies API
+	// You can view the scaling policies for an Auto Scaling group using the [DescribePolicies] API
 	// call. If you are no longer using a scaling policy, you can delete it by calling
-	// the DeletePolicyAPI.
+	// the [DeletePolicy]API.
 	//
 	// [Step and simple scaling policies]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scaling-simple-step.html
+	// [DeletePolicy]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DeletePolicy.html
 	// [Target tracking scaling policies]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-scaling-target-tracking.html
+	// [DescribePolicies]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribePolicies.html
 	// [Predictive scaling for Amazon EC2 Auto Scaling]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-predictive-scaling.html
 	PutScalingPolicy(ctx context.Context, params *PutScalingPolicyInput, optFns ...func(*Options)) (*PutScalingPolicyOutput, error)
 	// Creates or updates a scheduled scaling action for an Auto Scaling group.
 	//
 	// For more information, see [Scheduled scaling] in the Amazon EC2 Auto Scaling User Guide.
 	//
-	// You can view the scheduled actions for an Auto Scaling group using the DescribeScheduledActions API
+	// You can view the scheduled actions for an Auto Scaling group using the [DescribeScheduledActions] API
 	// call. If you are no longer using a scheduled action, you can delete it by
-	// calling the DeleteScheduledActionAPI.
+	// calling the [DeleteScheduledAction]API.
 	//
 	// If you try to schedule your action in the past, Amazon EC2 Auto Scaling returns
 	// an error message.
 	//
+	// [DeleteScheduledAction]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DeleteScheduledAction.html
+	// [DescribeScheduledActions]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeScheduledActions.html
 	// [Scheduled scaling]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-scheduled-scaling.html
 	PutScheduledUpdateGroupAction(ctx context.Context, params *PutScheduledUpdateGroupActionInput, optFns ...func(*Options)) (*PutScheduledUpdateGroupActionOutput, error)
 	// Creates or updates a warm pool for the specified Auto Scaling group. A warm
@@ -658,16 +708,18 @@ type ASG interface {
 	// This operation must be called from the Region in which the Auto Scaling group
 	// was created.
 	//
-	// You can view the instances in the warm pool using the DescribeWarmPool API call. If you are no
-	// longer using a warm pool, you can delete it by calling the DeleteWarmPoolAPI.
+	// You can view the instances in the warm pool using the [DescribeWarmPool] API call. If you are no
+	// longer using a warm pool, you can delete it by calling the [DeleteWarmPool]API.
 	//
 	// For more information, see [Warm pools for Amazon EC2 Auto Scaling] in the Amazon EC2 Auto Scaling User Guide.
 	//
+	// [DeleteWarmPool]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DeleteWarmPool.html
+	// [DescribeWarmPool]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeWarmPool.html
 	// [Warm pools for Amazon EC2 Auto Scaling]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-warm-pools.html
 	PutWarmPool(ctx context.Context, params *PutWarmPoolInput, optFns ...func(*Options)) (*PutWarmPoolOutput, error)
 	// Records a heartbeat for the lifecycle action associated with the specified
 	// token or instance. This extends the timeout by the length of time defined using
-	// the PutLifecycleHookAPI call.
+	// the [PutLifecycleHook]API call.
 	//
 	// This step is a part of the procedure for adding a lifecycle hook to an Auto
 	// Scaling group:
@@ -690,12 +742,14 @@ type ASG interface {
 	//   - If you need more time, record the lifecycle action heartbeat to keep the
 	//     instance in a wait state.
 	//
-	//   - If you finish before the timeout period ends, send a callback by using the CompleteLifecycleAction
+	//   - If you finish before the timeout period ends, send a callback by using the [CompleteLifecycleAction]
 	//     API call.
 	//
 	// For more information, see [Amazon EC2 Auto Scaling lifecycle hooks] in the Amazon EC2 Auto Scaling User Guide.
 	//
+	// [CompleteLifecycleAction]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_CompleteLifecycleAction.html
 	// [Amazon EC2 Auto Scaling lifecycle hooks]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/lifecycle-hooks.html
+	// [PutLifecycleHook]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_PutLifecycleHook.html
 	RecordLifecycleActionHeartbeat(ctx context.Context, params *RecordLifecycleActionHeartbeatInput, optFns ...func(*Options)) (*RecordLifecycleActionHeartbeatOutput, error)
 	// Resumes the specified suspended auto scaling processes, or all suspended
 	// process, for the specified Auto Scaling group.
@@ -726,9 +780,10 @@ type ASG interface {
 	//
 	// When you receive a successful response from this operation, Amazon EC2 Auto
 	// Scaling immediately begins replacing instances. You can check the status of this
-	// operation through the DescribeInstanceRefreshesAPI operation.
+	// operation through the [DescribeInstanceRefreshes]API operation.
 	//
 	// [instance refresh feature]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/asg-instance-refresh.html
+	// [DescribeInstanceRefreshes]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeInstanceRefreshes.html
 	RollbackInstanceRefresh(ctx context.Context, params *RollbackInstanceRefreshInput, optFns ...func(*Options)) (*RollbackInstanceRefreshOutput, error)
 	// Sets the size of the specified Auto Scaling group.
 	//
@@ -742,9 +797,9 @@ type ASG interface {
 	SetDesiredCapacity(ctx context.Context, params *SetDesiredCapacityInput, optFns ...func(*Options)) (*SetDesiredCapacityOutput, error)
 	// Sets the health status of the specified instance.
 	//
-	// For more information, see [Health checks for instances in an Auto Scaling group] in the Amazon EC2 Auto Scaling User Guide.
+	// For more information, see [Set up a custom health check for your Auto Scaling group] in the Amazon EC2 Auto Scaling User Guide.
 	//
-	// [Health checks for instances in an Auto Scaling group]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-health-checks.html
+	// [Set up a custom health check for your Auto Scaling group]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/set-up-a-custom-health-check.html
 	SetInstanceHealth(ctx context.Context, params *SetInstanceHealthInput, optFns ...func(*Options)) (*SetInstanceHealthOutput, error)
 	// Updates the instance protection settings of the specified instances. This
 	// operation cannot be called on instances in a warm pool.
@@ -766,23 +821,27 @@ type ASG interface {
 	// instances in the group.
 	//
 	// If successful, the request's response contains a unique ID that you can use to
-	// track the progress of the instance refresh. To query its status, call the DescribeInstanceRefreshesAPI.
-	// To describe the instance refreshes that have already run, call the DescribeInstanceRefreshesAPI. To
-	// cancel an instance refresh that is in progress, use the CancelInstanceRefreshAPI.
+	// track the progress of the instance refresh. To query its status, call the [DescribeInstanceRefreshes]API.
+	// To describe the instance refreshes that have already run, call the [DescribeInstanceRefreshes]API. To
+	// cancel an instance refresh that is in progress, use the [CancelInstanceRefresh]API.
 	//
 	// An instance refresh might fail for several reasons, such as EC2 launch
 	// failures, misconfigured health checks, or not ignoring or allowing the
 	// termination of instances that are in Standby state or protected from scale in.
 	// You can monitor for failed EC2 launches using the scaling activities. To find
-	// the scaling activities, call the DescribeScalingActivitiesAPI.
+	// the scaling activities, call the [DescribeScalingActivities]API.
 	//
 	// If you enable auto rollback, your Auto Scaling group will be rolled back
 	// automatically when the instance refresh fails. You can enable this feature
 	// before starting an instance refresh by specifying the AutoRollback property in
 	// the instance refresh preferences. Otherwise, to roll back an instance refresh
-	// before it finishes, use the RollbackInstanceRefreshAPI.
+	// before it finishes, use the [RollbackInstanceRefresh]API.
 	//
+	// [DescribeScalingActivities]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeScalingActivities.html
 	// [instance refresh feature]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/asg-instance-refresh.html
+	// [DescribeInstanceRefreshes]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeInstanceRefreshes.html
+	// [CancelInstanceRefresh]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_CancelInstanceRefresh.html
+	// [RollbackInstanceRefresh]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_RollbackInstanceRefresh.html
 	StartInstanceRefresh(ctx context.Context, params *StartInstanceRefreshInput, optFns ...func(*Options)) (*StartInstanceRefreshOutput, error)
 	// Suspends the specified auto scaling processes, or all processes, for the
 	// specified Auto Scaling group.
@@ -791,8 +850,9 @@ type ASG interface {
 	// other process types from functioning properly. For more information, see [Suspend and resume Amazon EC2 Auto Scaling processes]in the
 	// Amazon EC2 Auto Scaling User Guide.
 	//
-	// To resume processes that have been suspended, call the ResumeProcesses API.
+	// To resume processes that have been suspended, call the [ResumeProcesses] API.
 	//
+	// [ResumeProcesses]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_ResumeProcesses.html
 	// [Suspend and resume Amazon EC2 Auto Scaling processes]: https://docs.aws.amazon.com/autoscaling/ec2/userguide/as-suspend-resume-processes.html
 	SuspendProcesses(ctx context.Context, params *SuspendProcessesInput, optFns ...func(*Options)) (*SuspendProcessesOutput, error)
 	// Terminates the specified instance and optionally adjusts the desired group
@@ -852,9 +912,13 @@ type ASG interface {
 	//     DesiredCapacity , and the new MaxSize is smaller than the current size of the
 	//     group, this sets the group's DesiredCapacity to the new MaxSize value.
 	//
-	// To see which properties have been set, call the DescribeAutoScalingGroups API. To view the scaling
-	// policies for an Auto Scaling group, call the DescribePoliciesAPI. If the group has scaling
-	// policies, you can update them by calling the PutScalingPolicyAPI.
+	// To see which properties have been set, call the [DescribeAutoScalingGroups] API. To view the scaling
+	// policies for an Auto Scaling group, call the [DescribePolicies]API. If the group has scaling
+	// policies, you can update them by calling the [PutScalingPolicy]API.
+	//
+	// [DescribeAutoScalingGroups]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribeAutoScalingGroups.html
+	// [DescribePolicies]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_DescribePolicies.html
+	// [PutScalingPolicy]: https://docs.aws.amazon.com/autoscaling/ec2/APIReference/API_PutScalingPolicy.html
 	UpdateAutoScalingGroup(ctx context.Context, params *UpdateAutoScalingGroupInput, optFns ...func(*Options)) (*UpdateAutoScalingGroupOutput, error)
 }
 

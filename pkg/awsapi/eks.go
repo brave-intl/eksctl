@@ -116,7 +116,7 @@ type EKS interface {
 	//
 	// The Fargate profile allows an administrator to declare which pods run on
 	// Fargate and specify which pods run on which Fargate profile. This declaration is
-	// done through the profile’s selectors. Each profile can have up to five selectors
+	// done through the profile's selectors. Each profile can have up to five selectors
 	// that contain a namespace and labels. A namespace is required for every selector.
 	// The label field consists of multiple optional key-value pairs. Pods that match
 	// the selectors are scheduled on Fargate. If a to-be-scheduled pod matches any of
@@ -150,8 +150,13 @@ type EKS interface {
 	// You can only create a node group for your cluster that is equal to the current
 	// Kubernetes version for the cluster. All node groups are created with the latest
 	// AMI release version for the respective minor Kubernetes version of the cluster,
-	// unless you deploy a custom AMI using a launch template. For more information
-	// about using launch templates, see [Customizing managed nodes with launch templates].
+	// unless you deploy a custom AMI using a launch template.
+	//
+	// For later updates, you will only be able to update a node group using a launch
+	// template only if it was originally deployed with a launch template.
+	// Additionally, the launch template ID or name must match what was used when the
+	// node group was created. You can update the launch template version with
+	// necessary changes. For more information about using launch templates, see [Customizing managed nodes with launch templates].
 	//
 	// An Amazon EKS managed node group is an Amazon EC2 Auto Scaling group and
 	// associated Amazon EC2 instances that are managed by Amazon Web Services for an
@@ -261,6 +266,8 @@ type EKS interface {
 	//
 	// [Creating or updating a kubeconfig file for an Amazon EKS cluster]: https://docs.aws.amazon.com/eks/latest/userguide/create-kubeconfig.html
 	DescribeCluster(ctx context.Context, params *DescribeClusterInput, optFns ...func(*Options)) (*DescribeClusterOutput, error)
+	// Lists available Kubernetes versions for Amazon EKS clusters.
+	DescribeClusterVersions(ctx context.Context, params *DescribeClusterVersionsInput, optFns ...func(*Options)) (*DescribeClusterVersionsOutput, error)
 	// Returns descriptive information about a subscription.
 	DescribeEksAnywhereSubscription(ctx context.Context, params *DescribeEksAnywhereSubscriptionInput, optFns ...func(*Options)) (*DescribeEksAnywhereSubscriptionOutput, error)
 	// Describes an Fargate profile.
@@ -280,7 +287,7 @@ type EKS interface {
 	DescribePodIdentityAssociation(ctx context.Context, params *DescribePodIdentityAssociationInput, optFns ...func(*Options)) (*DescribePodIdentityAssociationOutput, error)
 	// Describes an update to an Amazon EKS resource.
 	//
-	// When the status of the update is Succeeded , the update is complete. If an
+	// When the status of the update is Successful , the update is complete. If an
 	// update fails, the status is Failed , and an error detail explains the reason for
 	// the failure.
 	DescribeUpdate(ctx context.Context, params *DescribeUpdateInput, optFns ...func(*Options)) (*DescribeUpdateOutput, error)
@@ -332,8 +339,8 @@ type EKS interface {
 	// Any Kubernetes cluster can be connected to the Amazon EKS control plane to view
 	// current information about the cluster and its nodes.
 	//
-	// Cluster connection requires two steps. First, send a RegisterClusterRequest to add it to the Amazon
-	// EKS control plane.
+	// Cluster connection requires two steps. First, send a [RegisterClusterRequest]RegisterClusterRequest to
+	// add it to the Amazon EKS control plane.
 	//
 	// Second, a [Manifest] containing the activationID and activationCode must be applied to
 	// the Kubernetes cluster through it's native provider to provide visibility.
@@ -343,6 +350,7 @@ type EKS interface {
 	// the connected cluster will no longer be visible and must be deregistered using
 	// DeregisterCluster .
 	//
+	// [RegisterClusterRequest]: https://docs.aws.amazon.com/eks/latest/APIReference/API_RegisterClusterRequest.html
 	// [Manifest]: https://amazon-eks.s3.us-west-2.amazonaws.com/eks-connector/manifests/eks-connector/latest/eks-connector.yaml
 	RegisterCluster(ctx context.Context, params *RegisterClusterInput, optFns ...func(*Options)) (*RegisterClusterOutput, error)
 	// Associates the specified tags to an Amazon EKS resource with the specified
@@ -383,6 +391,10 @@ type EKS interface {
 	// with. For more information about the VPC requirements, see [https://docs.aws.amazon.com/eks/latest/userguide/network_reqs.html]in the Amazon EKS
 	// User Guide .
 	//
+	// You can also use this API operation to enable or disable ARC zonal shift. If
+	// zonal shift is enabled, Amazon Web Services configures zonal autoshift for the
+	// cluster.
+	//
 	// Cluster updates are asynchronous, and they should finish within a few minutes.
 	// During an update, the cluster status moves to UPDATING (this status transition
 	// is eventually consistent). When the update is complete (either Failed or
@@ -395,8 +407,8 @@ type EKS interface {
 	UpdateClusterConfig(ctx context.Context, params *UpdateClusterConfigInput, optFns ...func(*Options)) (*UpdateClusterConfigOutput, error)
 	// Updates an Amazon EKS cluster to the specified Kubernetes version. Your cluster
 	// continues to function during the update. The response output includes an update
-	// ID that you can use to track the status of your cluster update with the DescribeUpdateAPI
-	// operation.
+	// ID that you can use to track the status of your cluster update with the [DescribeUpdate]
+	// DescribeUpdate API operation.
 	//
 	// Cluster updates are asynchronous, and they should finish within a few minutes.
 	// During an update, the cluster status moves to UPDATING (this status transition
@@ -404,26 +416,34 @@ type EKS interface {
 	// Successful ), the cluster status moves to Active .
 	//
 	// If your cluster has managed node groups attached to it, all of your node
-	// groups’ Kubernetes versions must match the cluster’s Kubernetes version in order
+	// groups' Kubernetes versions must match the cluster's Kubernetes version in order
 	// to update the cluster to a new Kubernetes version.
+	//
+	// [DescribeUpdate]: https://docs.aws.amazon.com/eks/latest/APIReference/API_DescribeUpdate.html
 	UpdateClusterVersion(ctx context.Context, params *UpdateClusterVersionInput, optFns ...func(*Options)) (*UpdateClusterVersionOutput, error)
 	// Update an EKS Anywhere Subscription. Only auto renewal and tags can be updated
 	// after subscription creation.
 	UpdateEksAnywhereSubscription(ctx context.Context, params *UpdateEksAnywhereSubscriptionInput, optFns ...func(*Options)) (*UpdateEksAnywhereSubscriptionOutput, error)
 	// Updates an Amazon EKS managed node group configuration. Your node group
 	// continues to function during the update. The response output includes an update
-	// ID that you can use to track the status of your node group update with the DescribeUpdateAPI
-	// operation. Currently you can update the Kubernetes labels for a node group or
-	// the scaling configuration.
+	// ID that you can use to track the status of your node group update with the [DescribeUpdate]
+	// DescribeUpdate API operation. You can update the Kubernetes labels and taints
+	// for a node group and the scaling and version update configuration.
+	//
+	// [DescribeUpdate]: https://docs.aws.amazon.com/eks/latest/APIReference/API_DescribeUpdate.html
 	UpdateNodegroupConfig(ctx context.Context, params *UpdateNodegroupConfigInput, optFns ...func(*Options)) (*UpdateNodegroupConfigOutput, error)
 	// Updates the Kubernetes version or AMI version of an Amazon EKS managed node
 	// group.
 	//
 	// You can update a node group using a launch template only if the node group was
-	// originally deployed with a launch template. If you need to update a custom AMI
-	// in a node group that was deployed with a launch template, then update your
-	// custom AMI, specify the new ID in a new version of the launch template, and then
-	// update the node group to the new version of the launch template.
+	// originally deployed with a launch template. Additionally, the launch template ID
+	// or name must match what was used when the node group was created. You can update
+	// the launch template version with necessary changes.
+	//
+	// If you need to update a custom AMI in a node group that was deployed with a
+	// launch template, then update your custom AMI, specify the new ID in a new
+	// version of the launch template, and then update the node group to the new
+	// version of the launch template.
 	//
 	// If you update without a launch template, then you can update to the latest
 	// available AMI version of a node group's current Kubernetes version by not

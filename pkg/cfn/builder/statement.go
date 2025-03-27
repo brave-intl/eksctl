@@ -1,7 +1,7 @@
 package builder
 
 import (
-	gfnt "github.com/weaveworks/goformation/v4/cloudformation/types"
+	gfnt "github.com/weaveworks/eksctl/pkg/goformation/cloudformation/types"
 
 	cft "github.com/weaveworks/eksctl/pkg/cfn/template"
 )
@@ -42,6 +42,7 @@ func loadBalancerControllerStatements() []cft.MapOfInterfaces {
 				"elasticloadbalancing:DescribeLoadBalancers",
 				"elasticloadbalancing:DescribeLoadBalancerAttributes",
 				"elasticloadbalancing:DescribeListeners",
+				"elasticloadbalancing:DescribeListenerAttributes",
 				"elasticloadbalancing:DescribeListenerCertificates",
 				"elasticloadbalancing:DescribeSSLPolicies",
 				"elasticloadbalancing:DescribeRules",
@@ -190,6 +191,7 @@ func loadBalancerControllerStatements() []cft.MapOfInterfaces {
 		{
 			"Effect": effectAllow,
 			"Action": []string{
+				"elasticloadbalancing:ModifyListenerAttributes",
 				"elasticloadbalancing:ModifyLoadBalancerAttributes",
 				"elasticloadbalancing:SetIpAddressType",
 				"elasticloadbalancing:SetSecurityGroups",
